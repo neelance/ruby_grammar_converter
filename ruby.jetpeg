@@ -1,0 +1,1087 @@
+rule program
+  compstmt
+end
+
+rule uchar
+  [A-Z]
+end
+
+rule lchar
+  ([a-z] / "_")
+end
+
+rule digit
+  [0-9]
+end
+
+rule octdigit
+  [0-7]
+end
+
+rule bindigit
+  ("0" / "1")
+end
+
+rule hexdigit
+  ([0-9] / [a-f] / [A-Z])
+end
+
+rule non-control-char
+  [ -~]
+end
+
+rule wordchar1
+  (uchar / lchar)
+end
+
+rule wordchar
+  (uchar / lchar / digit)
+end
+
+rule wordchars
+  wordchar*
+end
+
+rule uword
+  (uchar wordchars)
+end
+
+rule lword
+  (lchar wordchars)
+end
+
+rule word
+  (wordchar1 wordchars)
+end
+
+rule term
+  (h0 (";" / nl) s0)
+end
+
+rule terms
+  (term opt-terms)
+end
+
+rule opt-terms
+  [ \t\n\r;]*
+end
+
+rule bodystmt
+  (compstmt (( rescues else) / ( rescues))? ( ensure)?)
+end
+
+rule rescues
+  ((("rescue" !wordchar h0 exceptions?) (h0 "=>" s0 lhs1)? (then compstmt)) rescues?)
+end
+
+rule exceptions
+  (ldefined (comma exceptions)?)
+end
+
+rule ensure
+  ("ensure" !wordchar compstmt)
+end
+
+rule compstmt
+  (opt-terms stmts? opt-terms)
+end
+
+rule stmts
+  (((stmt-postcomment / (stmt terms)) ( many-stmts)) / ((stmt-postcomment / stmt) opt-terms))
+end
+
+rule many-stmts
+  (((stmt-postcomment / (stmt terms)) ( many-stmts?)) / (stmt ()))
+end
+
+rule stmt-postcomment
+  (stmt term-comment-lines)
+end
+
+rule term-comment-lines
+  (h0 ";"? comment-lines opt-terms)
+end
+
+rule stmt
+  ((comment-lines (nl h0 stmt0)) / unassociated-comment / stmt0)
+end
+
+rule stmt0
+  (stmt1 (h0 (("if" !wordchar s0c ( boolean)) / ("unless" !wordchar s0c ( boolean)) / ("while" !wordchar s0c ( boolean)) / ("until" !wordchar s0c ( boolean)) / ("rescue" !wordchar s0c ( boolean))))*)
+end
+
+rule stmt1
+  (alias / undef / global-begin / global-end / masgn / boolean)
+end
+
+rule alias-op
+  (":"? operation2)
+end
+
+rule alias
+  ("alias" !wordchar s0 ((alias-op (s0 alias-op)) / (gvar (s0 valias-target))))
+end
+
+rule valias-target
+  (gvar / (s0 (special-variables / back-ref / (nth-ref $error["can't make alias for the number variables"])?)))
+end
+
+rule undef
+  ("undef" !wordchar undef-list)
+end
+
+rule undef-list
+  (undef-part (comma undef-list)?)
+end
+
+rule undef-part
+  (s0 ":"? operation2)
+end
+
+rule global-begin
+  ("BEGIN" !wordchar begin-end-block)
+end
+
+rule global-end
+  ("END" !wordchar begin-end-block)
+end
+
+rule begin-end-block
+  (s0 "{" s0 compstmt s0 "}")
+end
+
+rule boolean
+  (not ((h0 "and" !wordchar s0c ( not)) / (h0 "or" !wordchar s0c ( not)))*)
+end
+
+rule not
+  (("not" !wordchar s0c not) / command)
+end
+
+rule command
+  (commandxx / casg / defined)
+end
+
+rule commandxx
+  (("!" commandxx) / commandx)
+end
+
+rule commandx
+  (yieldc / superc / return / breakc / nextc / command1 / command2)
+end
+
+rule command1
+  (operation-na h ( cmdargs-block))
+end
+
+rule command2
+  (primary h0 (h0 ((("." / "::") s0 ( operation2 paren-arguments-block?)) / ( array)))*[(h0 ("." / "::") s0 operation2-na h (  cmdargs-block))])
+end
+
+rule yieldc
+  ("yield" !wordchar h0 cmdargs-opt-block)
+end
+
+rule superc
+  ("super" !wordchar h0 cmdargs-opt-block)
+end
+
+rule return
+  ("return" !wordchar h0 cmd2args)
+end
+
+rule breakc
+  ("break" !wordchar h0 cmdargs?)
+end
+
+rule nextc
+  ("next" !wordchar h0 cmdargs?)
+end
+
+rule cmdargs-block
+  ((!"<<" (commandx ())) / (cmdargs ( block)?))
+end
+
+rule cmdargs-opt-block
+  ((cmdargs? block) / cmdargs)
+end
+
+rule cmdargs
+  (cmdarg-first (comma cmdargs1)?)
+end
+
+rule cmdargs1
+  (cmdarg (comma cmdargs1)?)
+end
+
+rule cmdarg-first
+  cmdarg
+end
+
+rule cmdarg
+  arg
+end
+
+rule cmd2args
+  (cmd2arg-first (comma cmd2args1)?)
+end
+
+rule cmd2args1
+  (arg (comma cmd2args1)?)
+end
+
+rule cmd2arg-first
+  arg
+end
+
+rule arg
+  (hash-assocs / splat-arg / ("&" s0 ldefined))
+end
+
+rule splat-arg
+  (ldefined / splat-arg1)
+end
+
+rule splat-arg1
+  ("*" s0 ldefined)
+end
+
+rule ldefined
+  defined
+end
+
+rule masgn
+  (mlhs1 h0 "=" !"~" s0 (( (mrhs1 / (splat-arg1 ()))) / ( command)))
+end
+
+rule mlhs1
+  (((mlhsp / mlhsx-splat) (comma mlhs?)?) / (mlhsx (comma mlhs?)))
+end
+
+rule mlhs
+  ((mlhsp / mlhsx) (comma mlhs?)?)
+end
+
+rule mlhsp
+  (h0 "(" s0 mlhs h0 ")")
+end
+
+rule mlhsx
+  (lhs1 / mlhsx-splat)
+end
+
+rule mlhsx-splat
+  ("*" s0 (lhs1 / ()))
+end
+
+rule mrhs1
+  (mrhsx (comma mrhs))
+end
+
+rule mrhs
+  (mrhsx (comma mrhs)?)
+end
+
+rule mrhsx
+  arg
+end
+
+rule defined
+  (defined1 / assignment)
+end
+
+rule defined1
+  ("defined?" s0 !"(" assignment)
+end
+
+rule rop
+  (asg / defined1)
+end
+
+rule assignment
+  (asg / rescue-mod)
+end
+
+rule casg
+  (lhs1 h0 (("=" ![~=] s0c ( asgvalue)) / ("&&=" s0c ( command)) / ("||=" s0c ( command)) / ("+=" s0c ( command)) / ("-=" s0c ( command)) / ("*=" s0c ( command)) / ("/=" s0c ( command)) / ("%=" s0c ( command)) / ("**=" s0c ( command)) / ("<<=" s0c ( command)) / (">>=" s0c ( command)) / ("|=" s0c ( command)) / ("^=" s0c ( command)) / ("&=" s0c ( command))))
+end
+
+rule asg
+  (lhs1 h0 (("=" ![~=] s0c ( ldefined)) / ("&&=" s0c ( ldefined)) / ("||=" s0c ( ldefined)) / ("+=" s0c ( ldefined)) / ("-=" s0c ( ldefined)) / ("*=" s0c ( ldefined)) / ("/=" s0c ( ldefined)) / ("%=" s0c ( ldefined)) / ("**=" s0c ( ldefined)) / ("<<=" s0c ( ldefined)) / (">>=" s0c ( ldefined)) / ("|=" s0c ( ldefined)) / ("^=" s0c ( ldefined)) / ("&=" s0c ( ldefined))))
+end
+
+rule lhs1
+  (sends1-lhs / variable / new-lvar / toplevel-constant)
+end
+
+rule new-lvar
+  (non-keyword lword !(h0 ("." / "[")))
+end
+
+rule asgvalue
+  (commandxx / asgargs)
+end
+
+rule asgargs
+  ((arg (comma asgargs1)) / defined)
+end
+
+rule asgargs1
+  (arg (h0 comma asgargs1)?)
+end
+
+rule rescue-mod
+  (short-if h0 ("rescue" !wordchar s0c ( boolean))?)
+end
+
+rule short-if
+  (range h0 ("?" s0c ldefined s0c ":" !":" s0c ldefined (  ))?)
+end
+
+rule range
+  (orop h0 (("..." s0c ( (rop / orop))) / (".." s0c ( (rop / orop))))?)
+end
+
+rule orop
+  (andop h0 ("||" s0c ( (rop / andop)))*)
+end
+
+rule andop
+  (compare h0 ("&&" s0c ( (rop / compare)))*)
+end
+
+rule compare
+  (relop h0 (("<=>" s0c ( (rop / relop))) / ("===" s0c ( (rop / relop))) / ("==" s0c ( (rop / relop))) / ("!=" s0c ( (rop / relop))) / ("=~" s0c ( (rop / relop))) / ("!~" s0c ( (rop / relop))))?)
+end
+
+rule relop
+  (bitor h0 (("<=" s0c ( (rop / relop))) / ("<" s0c ( (rop / relop))) / (">=" s0c ( (rop / relop))) / (">" s0c ( (rop / relop))))*)
+end
+
+rule bitor
+  (bitand h0 (("|" s0c ( (rop / bitand))) / ("^" s0c ( (rop / bitand))))*)
+end
+
+rule bitand
+  (shift h0 ("&" s0c ( (rop / shift)))*)
+end
+
+rule shift
+  (add h0 (("<<" s0c ( (rop / add))) / (">>" s0c ( (rop / add))))*)
+end
+
+rule add
+  (mul h0 (("+" s0c ( (rop / mul))) / ("-" s0c ( (rop / mul))))*)
+end
+
+rule mul
+  (negated h0 (("*" s0c ( (rop / negated))) / ("/" s0c ( (rop / negated))) / ("%" s0c ( (rop / negated))))*)
+end
+
+rule uop-space
+  s0c?
+end
+
+rule negated
+  (("-" ![0-9] uop-space (rop / negated)) / pow)
+end
+
+rule pow
+  (unaries h0 ("**" s0c ( (rop / negated)))?)
+end
+
+rule unaries
+  ((("!" s0c (rop / unaries)) / ("+" uop-space (rop / unaries)) / ("~" s0c (rop / unaries))) / sends)
+end
+
+rule sends
+  (sends1 / primary)
+end
+
+rule sends1
+  (primary (h0 ((("." / "::") s0c (( operationl paren-arguments-block?) / ( uword paren-arguments-block) / ( uword))) / ( aref-array)))+)
+end
+
+rule sends1-lhs
+  (primary (h0 ((("." / "::") s0c (( operationl-na paren-arguments-block?) / ( uword paren-arguments-block) / ( uword))) / ( aref-array)))+)
+end
+
+rule aref-array
+  (array (h0 ( block))?)
+end
+
+rule paren-arguments
+  ("(" arguments s0 ")" h0 ( block)?)
+end
+
+rule paren-arguments-block
+  (h0 (paren-arguments / (() block)))
+end
+
+rule array
+  ("[" arguments comma? s0c "]")
+end
+
+rule arguments
+  (s0c ((commandx ()) / (arg opt-comma-arguments)?) s0c)
+end
+
+rule opt-comma-arguments
+  (s0c comma s0c (arg opt-comma-arguments))?
+end
+
+rule primary
+  ((string-regexp-words / primary1 / primary2) / self-send)
+end
+
+rule primary1
+  (literal / here-doc / yield / super / break / next / redo / retry / ("return" ()) / for-in / case / variable / defclass / defmodule / defmethod / begin-end / parenthesized / paren-definedp)
+end
+
+rule primary2
+  (if / unless / while / until)
+end
+
+rule yield
+  ("yield" (paren-arguments-block / (!wordchar ())))
+end
+
+rule super
+  ("super" (paren-arguments-block / (!wordchar ())))
+end
+
+rule break
+  ("break" !wordchar ())
+end
+
+rule next
+  ("next" !wordchar ())
+end
+
+rule redo
+  ("redo" !wordchar ())
+end
+
+rule retry
+  ("retry" !wordchar ())
+end
+
+rule if
+  ("if" !wordchar if2 "end" !wordchar)
+end
+
+rule if2
+  (s0 (boolean (then compstmt) iftail?))
+end
+
+rule iftail
+  (("elsif" !wordchar if2) / else)
+end
+
+rule else
+  (dropped-comment s0 "else" !wordchar dropped-comment s0 compstmt)
+end
+
+rule then
+  (dropped-comment h0 ((then1 dropped-comment term?) / (term then1?) / (":" dropped-comment)) s0)
+end
+
+rule then1
+  ("then" !wordchar)
+end
+
+rule unless
+  ("unless" !wordchar s0 (boolean (then compstmt) else?) "end" !wordchar)
+end
+
+rule while
+  ("while" !wordchar s0 (boolean-no-do do-compstmt-end))
+end
+
+rule until
+  ("until" !wordchar s0 (boolean-no-do do-compstmt-end))
+end
+
+rule for-in
+  ("for" !wordchar s0 (mlhs-opt-comma (h0 "in" !wordchar s0 boolean-no-do) do-compstmt-end))
+end
+
+rule mlhs-opt-comma
+  (mlhs (h0 ",")?)
+end
+
+rule boolean-no-do
+  (boolean dropped-comment)
+end
+
+rule do-compstmt-end
+  (do compstmt "end" !wordchar)
+end
+
+rule do
+  (h0 (term / ":" / "do") s0)
+end
+
+rule case
+  ("case" !wordchar s0c (boolean? (s0c when) (s0 else)?) s0 "end" !wordchar)
+end
+
+rule when
+  (opt-terms dropped-comment opt-terms "when" !wordchar s0 arguments-splat then (( compstmt) when?))
+end
+
+rule arguments-splat
+  (splat-arg (s0 comma arguments-splat?)?)
+end
+
+rule self-send
+  (((non-keyword (fid / lword)) paren-arguments-block?) / (uword paren-arguments-block))
+end
+
+rule non-keyword
+  !((("if" / "unless" / "until" / "for" / "in" / "while" / "and" / "or" / "not" / "begin" / "then" / "else" / "elsif" / "end" / "case" / "when" / "class" / "module" / "def" / "do" / "rescue" / "ensure" / "yield" / "return" / "yield" / "super" / "next") non-word-char) / "defined?")
+end
+
+rule non-word-char
+  [\n\r\t \"#$%&'()*+,-./:;<=>@[\\]^`{|}~]
+end
+
+rule operation
+  (non-keyword (fid / lword / uword))
+end
+
+rule operation-na
+  (non-keyword (fid-na / lword / uword))
+end
+
+rule operation2
+  (fid / lword / uword / aref-assign / operator)
+end
+
+rule aref-assign
+  ("[]=" !"=")
+end
+
+rule operation2-na
+  (fid-na / lword / uword / operator)
+end
+
+rule operationl
+  (fid / lword / operator)
+end
+
+rule operationl-na
+  (fid-na / lword / operator)
+end
+
+rule fid
+  (word ("?" / ("!" !"=" ) / ("=" ![>=~] )))
+end
+
+rule fid-na
+  (word ("?" / ("!" !"=" )))
+end
+
+rule operator
+  ("-@" / "+@" / "~" / "+" / "-" / "**" / "*" / "/" / "%" / "<<" / ">>" / "&" / "|" / "^" / "<=>" / "<=" / "<" / ">=" / ">" / "===" / "==" / "=~" / "[]")
+end
+
+rule begin-end
+  ("begin" !wordchar s0 bodystmt "end")
+end
+
+rule parenthesized
+  ("(" s0 compstmt ")")
+end
+
+rule paren-definedp
+  ("defined?" s0 parenthesized)
+end
+
+rule literal
+  (number / array / symbol / hash-literal / char-literal)
+end
+
+rule char-literal
+  ("?" (("\\" (backslash-char / (()? $error["bad backslash"])?)) / [!-\xff]))
+end
+
+rule backslash-char
+  ([abefnrstv\\] / ("x" hex-integer-max-two-digits) / octal-integer-max-three-digits / ctrl-meta-char-literal)
+end
+
+rule ctrl-meta-char-literal
+  ((("C-" / "c") non-control-char-literal) / ("M-\\C-" non-control-char-literal) / ("M-" non-control-char-literal))
+end
+
+rule non-control-char-literal
+  non-control-char
+end
+
+rule octal-integer-max-three-digits
+  (octdigit (octdigit octdigit?)?)
+end
+
+rule hex-integer-max-two-digits
+  (hexdigit hexdigit?)
+end
+
+rule number
+  (("-" number1) / number1)
+end
+
+rule number1
+  (hex-literal / bin-literal / oct-literal / float-literal / dec-literal)
+end
+
+rule hex-literal
+  ("0x" (hexdigit ("_"? hexdigit)*))
+end
+
+rule dec-literal
+  dec-digits
+end
+
+rule dec-digits
+  (digit ("_"? digit)*)
+end
+
+rule oct-literal
+  ("0" (octdigit ("_"? octdigit)*))
+end
+
+rule bin-literal
+  ("0b" (bindigit ("_"? bindigit)*))
+end
+
+rule float-literal
+  (dec-digits "." dec-digits ("e" "-"? dec-digits)?)
+end
+
+rule symbol
+  (":" ((ivarname / cvarname / gvarname / operation2 / symbol-sv) / strings))
+end
+
+rule symbol-sv
+  ("$" [!@~=/\\,;.<>_0*$?:\"&`'+123456789])
+end
+
+rule hash-literal
+  ("{" s0c hash-assocs0 s0c comma? s0c "}")
+end
+
+rule hash-assocs0
+  hash-assocs?
+end
+
+rule hash-assocs
+  (((word s0c ":" !":" s0c ( ldefined)) / (ldefined s0c ("=>" / ",") s0c ( ldefined))) (s0c comma s0c hash-assocs)?)
+end
+
+rule variable
+  (known-lvar / ivar / gvar / special-variables / constant / toplevel-constant / cvar / nil / self / true / false / __line__ / __file__)
+end
+
+rule known-lvar
+  (lword !("?" / "!" / (h0 "(")))
+end
+
+rule nil
+  ("nil" !wordchar ())
+end
+
+rule self
+  ("self" !wordchar ())
+end
+
+rule true
+  ("true" !wordchar ())
+end
+
+rule false
+  ("false" !wordchar ())
+end
+
+rule __line__
+  ("__LINE__" !wordchar ())
+end
+
+rule __file__
+  ("__FILE__" !wordchar ())
+end
+
+rule cvar
+  cvarname
+end
+
+rule cvarname
+  ("@@" word)
+end
+
+rule ivar
+  ivarname
+end
+
+rule ivarname
+  ("@" word)
+end
+
+rule gvar
+  gvarname
+end
+
+rule gvarname
+  ("$" (word / ("-" (uchar / lchar))))
+end
+
+rule special-variables
+  ("$" (("!" ()) / ("@" ()) / ("~" ()) / ("=" ()) / ("/" ()) / ("\\" ()) / ("," ()) / (";" ()) / ("." ()) / ("<" ()) / (">" ()) / ("_" ()) / ("0" ()) / ("*" ()) / ("$" ()) / ("?" ()) / (":" ()) / ("\"" ()) / back-ref-0 / nth-ref-0))
+end
+
+rule back-ref
+  ("$" back-ref-0)
+end
+
+rule back-ref-0
+  (("&" ()) / ("`" ()) / ("'" ()) / ("+" ()))
+end
+
+rule nth-ref-0
+  dec-digits
+end
+
+rule nth-ref
+  ("$" nth-ref-0)
+end
+
+rule constant
+  (uword !(h0 "("))
+end
+
+rule toplevel-constant
+  ("::" uword)
+end
+
+rule defclass
+  ("class" !wordchar s0 (defsclass / defclass1) s0 "end")
+end
+
+rule defclass1
+  (cpath superclass bodystmt)
+end
+
+rule defmodule
+  ("module" !wordchar s0 (cpath (dropped-comment terms bodystmt)) s0 "end")
+end
+
+rule cpath
+  sends
+end
+
+rule cname
+  ((lword $error["class/module name must be constant"])? uword)
+end
+
+rule superclass
+  ((dropped-comment term ()) / (h0 "<" boolean-opt-terms dropped-comment))
+end
+
+rule defsclass
+  ("<<" (boolean-opt-terms (dropped-comment bodystmt)))
+end
+
+rule boolean-opt-terms
+  (s0 boolean opt-terms)
+end
+
+rule defmethod
+  ("def" !wordchar s0 (defmethod1 / def-singleton-method) s0 "end" !wordchar)
+end
+
+rule defop
+  (operation2 h0)
+end
+
+rule defmethod1
+  (defop ( defformals bodystmt))
+end
+
+rule def-singleton-method
+  ((parenthesized / variable) ("::" / ".") defop (  defformals bodystmt))
+end
+
+rule defformals
+  ((dropped-comment terms ()) / ("(" s0 mformals? s0 ")" dropped-comment) / (mformals? dropped-comment terms))
+end
+
+rule mformals
+  (mformal (comma mformals)?)
+end
+
+rule mformal
+  (splat-formal / blockvar / mformal1)
+end
+
+rule mformal1
+  (lword (h0 "=" s0 ( defined))?)
+end
+
+rule splat-formal
+  ("*" (lword / ()))
+end
+
+rule blockvar
+  ("&" lword)
+end
+
+rule block
+  (brace-block / do-block)
+end
+
+rule brace-block
+  ("{" s0c (bpformals? compstmt) s0 "}")
+end
+
+rule do-block
+  ("do" !wordchar s0c (bpformals? compstmt) "end" !wordchar)
+end
+
+rule bpformals
+  ("|" s0 bformals? s0 ("," s0)? "|")
+end
+
+rule bformals
+  (bformal (s0 comma bformals)?)
+end
+
+rule bformal
+  (splat-formal / blockvar / mlhsp / ivar / (lword (s0 "=" s0 ( ldefined))?))
+end
+
+rule comma
+  (h0 "," dropped-comment s0)
+end
+
+rule dropped-comment
+  (h0 comment-line)?
+end
+
+rule unassociated-comment
+  (comment-lines / begin-end-comment)
+end
+
+rule comment-lines
+  (comment-line (nl h0 comment-lines)?)
+end
+
+rule comment-line
+  ("#" h0 comment-char*)
+end
+
+rule comment-char
+  ([ -\xff] / "\t")
+end
+
+rule begin-end-comment
+  ("=begin" h0 (!(nl "=end") ([ -~] / "\t" / nl))* nl "=end")
+end
+
+rule string-regexp-words
+  (("/" re) / strings / ("`" system) / ("%" (("q" sqstring-balanced) / (("Q" (string-balanced / string-balanced-spc)) / string-balanced) / ("w" sqstring-balanced) / ("W" string-balanced) / ("r" re-balanced) / ("x" string-balanced))))
+end
+
+rule strings
+  (("\"" string1) / ("'" sqstring1))
+end
+
+rule string1
+  (("\"" (h0 "\"" string1)?) / ((string2 / ("\\" backslash-char) / string-expr) string1))
+end
+
+rule string2
+  (!("\"" / ("#" [{@$]) / ("\\" [abefnrstvx0123456789cCM])) (("\\" nl) / (("\\" non-control-char) / non-control-char-tab-nl)))+
+end
+
+rule non-control-char-tab-nl
+  ([ -\xff] / "\n" / "\r" / "\t")
+end
+
+rule sqstring1
+  (("'" (h0 "'" sqstring1)?) / (sqstring2 sqstring1))
+end
+
+rule sqstring2
+  (!"'" (("\\" ['\\]) / non-control-char-tab-nl))+
+end
+
+rule string-balanced
+  (string-balanced1 / string-balanced-any)
+end
+
+rule string-balanced1
+  (string1-balanced / string1-balanced / string1-balanced / string1-balanced)
+end
+
+rule string-balanced-any
+  string1-balanced
+end
+
+rule string-balanced-spc
+  string1-balanced
+end
+
+rule string1-balanced
+  (($again[] ()) / ((string2-balanced / ("\\" backslash-char) / (s ()) / string-expr / string1-balanced-sub) string1-balanced))
+end
+
+rule string1-balanced-sub
+  ($again[] string1-balanced )
+end
+
+rule string2-balanced
+  (!($again[] / $again[] / ("#" [{@$]) / ("\\" [abefnrstvx0123456789cCM]) / s) (("\\" nl ?) / (("\\" (non-control-char / $again[])) / non-control-char-tab-nl)))+
+end
+
+rule system
+  string1-balanced
+end
+
+rule sqstring-balanced
+  (sqstring1-balanced / sqstring1-balanced / sqstring1-balanced / sqstring1-balanced / bsqstring-any)
+end
+
+rule bsqstring-any
+  sqstring1-balanced
+end
+
+rule sqstring1-balanced
+  (($again[] ()) / ((sqstring2-balanced / (s ()) / sqstring1-balanced-sub) sqstring1-balanced))
+end
+
+rule sqstring1-balanced-sub
+  ($again[] sqstring1-balanced )
+end
+
+rule sqstring2-balanced
+  (!($again[] / $again[] / s) (("\\" ("\\" / $again[] / " " / nl)) / non-control-char-tab-nl))+
+end
+
+rule string-expr
+  ("#" (string-block-expr / ivar / cvar / gvar / back-ref / nth-ref))
+end
+
+rule string-block-expr
+  ("{" compstmt "}")
+end
+
+rule here-doc
+  ("<<" (("-" here-doc-x) / here-doc-x))
+end
+
+rule here-doc-x
+  (dq-here-doc / sq-here-doc)
+end
+
+rule dq-here-doc
+  ((("\"" dq-here-doc-limiter "\"") / here-doc-limiter) ( ))
+end
+
+rule dq-here-doc-limiter
+  (!"\"" non-control-char-tab-nl)+
+end
+
+rule here-doc-limiter
+  wordchar+
+end
+
+rule dq-here-doc-1
+  ((nl hx? $again[] nl ()) / ((dq-here-doc-2 / ("\\" backslash-char) / string-expr) dq-here-doc-1))
+end
+
+rule dq-here-doc-2
+  (!((nl hx? $again[] nl) / ("#" [{@$]) / ("\\" [abefnrstvx0123456789cCM])) (("\\" nl) / (("\\" [#\"\\]) / non-control-char-tab-nl)))+
+end
+
+rule sq-here-doc
+  (("'" sq-here-doc-limiter "'") ( ))
+end
+
+rule sq-here-doc-limiter
+  (!"'" non-control-char-tab-nl)+
+end
+
+rule re
+  (can-re-start-with-space (re1 re-flags))
+end
+
+rule can-re-start-with-space
+  (() / !(" " / nl))
+end
+
+rule re-flags
+  [a-z]+?
+end
+
+rule re1
+  (("/" ()) / ((re2 / string-expr) re1))
+end
+
+rule re2
+  (!("/" / ("#" [{@$])) (("\\" (nl / "/" / ("\\" ) / ("#" ))) / non-control-char-tab-nl))+
+end
+
+rule re-balanced
+  (rebal0 re-flags)
+end
+
+rule rebal0
+  (rebal1 / rebal1 / rebal1 / rebal1 / rebal-any)
+end
+
+rule rebal-any
+  rebal1
+end
+
+rule rebal1
+  (($again[] ()) / ((rebal2 / string-expr / rebal1-sub) rebal1))
+end
+
+rule rebal1-sub
+  ($again[] rebal1 )
+end
+
+rule rebal2
+  (!($again[] / $again[] / ("#" [{@$])) (("\\" nl) / ("\\" non-control-char-tab-nl) / non-control-char-tab-nl))+
+end
+
+rule s0
+  [ \n\r\t]*
+end
+
+rule s
+  [ \n\r\t]+
+end
+
+rule h0
+  hspace*
+end
+
+rule h
+  hspace+
+end
+
+rule hspace
+  ([ \t] / ("\\" nl))
+end
+
+rule hx
+  [ \t]*
+end
+
+rule s0c
+  (s / comment-line / ("\\" nl))*
+end
+
+rule nl
+  ("\r\n" / "\r" / "\n")
+end

@@ -1,0 +1,182 @@
+rule grammar
+  ws rules:rdef* { rules.join("\n") }
+end
+
+rule rdef
+  (:name / param_open :name params:name* param_close) :form { "rule #{name}\n  #{form}\nend\n" }
+end
+
+rule form
+  param_open (
+    range / one_of /
+    seq / or / opt / except /
+    rep / rep1 / until /
+    call / arg /
+    make / string / yield /
+    new_mark_scope / mark / is_marked / add_mark_scope /
+    enter_mode / leave_mode / not_in_mode / only_in_mode /
+    error / return / again / location / postpone_rest_of_line /
+    capture
+  ) param_close /
+  str:string_literal { "\"#{str}\"" } / variable / name
+end
+
+rule variable
+  [@0-9] word_end ws { "" } # TODO
+end
+
+rule capture
+  [@0-9] word_end :form { form } # TODO
+end
+
+rule string_literal
+  '"' @:('\\' . / [^"])* '"' ws
+end
+
+rule range
+  'range' word_end b:char e:char { "[#{b}-#{e}]" }
+end
+
+rule one_of
+  'one-of' word_end chars:string_literal { "[#{chars}]" }
+end
+
+rule seq
+  'seq' word_end forms:form* { forms.seq }
+end
+
+rule or
+  'or' word_end forms:form* { "(#{forms.join(' / ')})" }
+end
+
+rule opt
+  'opt' word_end forms:form* { "#{forms.seq}?" }
+end
+
+rule except
+  'except' word_end forms:form* { "!#{forms.seq}" }
+end
+
+rule rep
+  'rep' word_end forms:form* { "#{forms.seq}*" }
+end
+
+rule rep1
+  'rep1' word_end forms:form* { "#{forms.seq}+" }
+end
+
+rule until
+  'until' word_end until_cond:form repeat:form { "#{repeat}*[#{until_cond}]" }
+end
+
+rule call
+  'call' word_end :name forms:form* { name } # TODO
+end
+
+rule arg
+  'arg' word_end :name { "" } # TODO
+end
+
+rule make
+  'make' word_end (
+    :name forms:form* { "#{forms.seq}" } # TODO
+  / 'nil' { "" } # TODO
+  / 'cons' word_end value:form list:form { "(#{value} #{list})" } # TODO
+  )
+end
+
+rule string
+  'string' word_end forms:form* { "#{forms.seq}" } # TODO
+end
+
+rule yield
+  'yield' word_end :form { form } # TODO
+end
+
+rule new_mark_scope
+  'new-mark-scope' word_end forms:form* { "#{forms.seq}" } # TODO
+end
+
+rule mark
+  'mark' word_end :form { form }
+end
+
+rule is_marked
+  'is-marked' word_end :form { form } # TODO
+end
+
+rule add_mark_scope
+  'add-mark-scope' word_end forms:form* { "#{forms.seq}" } # TODO
+end
+
+rule enter_mode
+  'enter-mode' word_end :name :form { form } # TODO
+end
+
+rule leave_mode
+  'leave-mode' word_end :name :form { form } # TODO
+end
+
+rule not_in_mode
+  'not-in-mode' word_end :name :form { form } # TODO
+end
+
+rule only_in_mode
+  'only-in-mode' word_end :name :form { form } # TODO
+end
+
+rule error
+  'error' word_end :form msg:string_literal { "(#{form} $error[\"#{msg}\"])?" }
+end
+
+rule return
+  'return' word_end str:string_literal { "" } # TODO
+end
+
+rule again
+  'again' word_end :form { "$again[#{form}]" }
+end
+
+rule location
+  'location' word_end :form { form } # TODO
+end
+
+rule postpone_rest_of_line
+  'postpone-rest-of-line' word_end :form { "" } # TODO
+end
+
+rule param_open
+  '(' ws
+end
+
+rule param_close
+  ')' ws
+end
+
+rule name
+  @:word_char+ ws
+end
+
+rule word_end
+  !(word_char) ws
+end
+
+rule word_char
+  [a-zA-Z0-9_\-]
+end
+
+rule char
+  '?' @:('\\x' hex hex / .) ws
+end
+
+rule hex
+  [0-9a-f]
+end
+
+rule ws
+  ([ \t\n\r] / line_comment)*
+end
+
+rule line_comment
+  ';;' [^\n]*
+end
