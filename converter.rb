@@ -23,9 +23,7 @@ class Array
 end
 
 code = IO.read "ruby.lisp.txt"
-parser = nil
-data = nil
-result = nil
+parser = data_pointer = input_address = data = result = nil
 
 Benchmark.bm(17) do |bm|
   bm.report("loading grammar:") do
@@ -33,11 +31,16 @@ Benchmark.bm(17) do |bm|
   end
   bm.report("compiling:") do
     parser.optimize = false
-    parser.parse "" # compile
+    parser[:grammar].match "" # compile
   end
   bm.report("parsing:") do
-    data = parser.parse(code)
+    data_pointer, input_address = parser.match_rule_raw parser[:grammar], code
   end
+  
+  bm.report("loading data:") do
+    data = parser[:grammar].rule_label_type.load data_pointer, code, input_address
+  end
+  
   bm.report("realizing data:") do
     result = JetPEG.realize_data data
   end
