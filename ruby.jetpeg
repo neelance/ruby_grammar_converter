@@ -55,7 +55,7 @@ rule word
 end
 
 rule term
-  h0 (";" / nl) @:s0
+  h0 ( ";" / nl ) @:s0
 end
 
 rule terms
@@ -67,15 +67,24 @@ rule opt_terms
 end
 
 rule bodystmt
-  @:compstmt @:((p0:%@ p1:rescues p2:else <RescuesElse>) / (p0:%@ p1:rescues <Rescues>))? @:@:(p0:%@ p1:ensure <Ensure>)?
+  %value:compstmt @:(
+    (
+      p0:%value p1:rescues p2:else @:<RescuesElse> /
+      p0:%value p1:rescues @:<Rescues>
+    ) /
+    %value
+  ) @:(
+    ( p0:%value p1:ensure @:<Ensure> ) /
+    %value
+  )
 end
 
 rule rescues
-  head:(p0:("rescue" !wordchar h0 @:exceptions?) p1:(h0 "=>" s0 lhs1)? p2:(then @:compstmt) <Resc>) tail:rescues?
+  head:p0:"rescue" !wordchar h0 exceptions? p1:h0 "=>" s0 lhs1? p2:then compstmt <Resc> tail:@:rescues?
 end
 
 rule exceptions
-  head:ldefined tail:(comma exceptions)?
+  head:ldefined tail:comma @:exceptions?
 end
 
 rule ensure
@@ -83,31 +92,50 @@ rule ensure
 end
 
 rule compstmt
-  opt_terms @:stmts? @:opt_terms
+  opt_terms @:stmts? opt_terms
 end
 
 rule stmts
-  (@:stmt_postcomment / (@:stmt @:terms)) @:@:(p0:(head:%@ tail:many_stmts) <Progn>)) / (@:(stmt_postcomment / stmt) @:opt_terms
+  <fixme rule>
 end
 
 rule many_stmts
-  1:stmt_postcomment / (1:stmt @:terms)) @:(head:%1 tail:many_stmts?)) / (head:stmt tail:(
+  (
+    %1:stmt_postcomment /
+    %1:stmt terms
+  ) ( head:%1 tail:@:many_stmts? ) /
+  head:stmt tail:@:()
 end
 
 rule stmt_postcomment
-  p0:stmt p1:term_comment_lines <Postcomment>
+  p0:stmt p1:term_comment_lines @:<Postcomment>
 end
 
 rule term_comment_lines
-  h0 ";"? @:comment_lines @:opt_terms
+  h0 ";"? @:comment_lines opt_terms
 end
 
 rule stmt
-  (p0:comment_lines p1:(nl h0 @:stmt0) <Comment>) / unassociated_comment / stmt0
+  p0:comment_lines p1:nl h0 stmt0 @:<Comment> /
+  unassociated_comment /
+  stmt0
 end
 
 rule stmt0
-  @:stmt1 @:(h0 @:(("if" !wordchar s0c p0:%@ p1:boolean <Rif>) / ("unless" !wordchar s0c p0:%@ p1:boolean <Runless>) / ("while" !wordchar s0c p0:%@ p1:boolean <Rwhile>) / ("until" !wordchar s0c p0:%@ p1:boolean <Runtil>) / ("rescue" !wordchar s0c p0:%@ p1:boolean <Rescue>)))*
+  %value:stmt1 @:( stmt0_suffix[%value] / %value )
+end
+
+rule stmt0_suffix[%inner_value]
+  %value:(
+    h0 (
+      "if" !wordchar s0c p0:%inner_value p1:boolean <Rif> /
+      "unless" !wordchar s0c p0:%inner_value p1:boolean <Runless> /
+      "while" !wordchar s0c p0:%inner_value p1:boolean <Rwhile> /
+      "until" !wordchar s0c p0:%inner_value p1:boolean <Runtil> /
+      "rescue" !wordchar s0c p0:%inner_value p1:boolean <Rescue>
+    )
+  )
+  @:( stmt0_suffix[%value] / %value )
 end
 
 rule stmt1
@@ -119,11 +147,19 @@ rule alias_op
 end
 
 rule alias
-  "alias" !wordchar s0 @:((p0:alias_op p1:(s0 @:alias_op) <Alias>) / (p0:gvar p1:(s0 @:valias_target) <Valias>))
+  "alias" !wordchar s0 (
+    p0:alias_op p1:s0 alias_op @:<Alias> /
+    p0:gvar p1:s0 valias_target @:<Valias>
+  )
 end
 
 rule valias_target
-  gvar / (s0 @:(special_variables / back_ref / (nth_ref $error["can't make alias for the number variables"])?))
+  gvar /
+  s0 (
+    @:special_variables /
+    @:back_ref /
+    ( @:nth_ref $error["can't make alias for the number variables"] )?
+  )
 end
 
 rule undef
@@ -131,7 +167,7 @@ rule undef
 end
 
 rule undef_list
-  head:undef_part tail:(comma undef_list)?
+  head:undef_part tail:comma @:undef_list?
 end
 
 rule undef_part
@@ -147,15 +183,24 @@ rule global_end
 end
 
 rule begin_end_block
-  s0 "{" s0 $new_mark_scope[@:compstmt] s0 @:"}"
+  <fixme rule>
 end
 
 rule boolean
-  @:not @:@:((h0 "and" !wordchar s0c p0:%@ p1:not <And>) / (h0 "or" !wordchar s0c p0:%@ p1:not <Or>))*
+  %value:not @:( boolean_suffix[%value] / %value )
+end
+
+rule boolean_suffix[%inner_value]
+  %value:(
+    h0 "and" !wordchar s0c p0:%inner_value p1:not <And> /
+    h0 "or" !wordchar s0c p0:%inner_value p1:not <Or>
+  )
+  @:( boolean_suffix[%value] / %value )
 end
 
 rule not
-  ("not" !wordchar s0c p0:not <Not>) / command
+  "not" !wordchar s0c p0:not <Not> /
+  command
 end
 
 rule command
@@ -163,7 +208,8 @@ rule command
 end
 
 rule commandxx
-  ("!" p0:commandxx <Opnot>) / commandx
+  "!" p0:commandxx <Opnot> /
+  commandx
 end
 
 rule commandx
@@ -171,11 +217,14 @@ rule commandx
 end
 
 rule command1
-  1:operation_na h p0:%1 p1:cmdargs_block <SelfCmd>
+  %1:operation_na h p0:%1 p1:cmdargs_block <SelfCmd>
 end
 
 rule command2
-  1:primary h0 @:(h0 @:1:((("." / "::") s0 p0:%1 p1:operation2 p2:paren_arguments_block? <Send>) / (p0:%1 p1:array <Aref>)))*[(h0 ("." / "::") s0 2:operation2_na h @:@:(p0:%1 p1:%2 p2:cmdargs_block <Cmd>))]
+  %1:primary h0 (
+    h0 %1:( "." / "::" ) s0 p0:%1 p1:operation2 p2:paren_arguments_block? <Send> /
+    p0:%1 p1:array @:<Aref>
+  )*[h0 ( "." / "::" ) s0 %2:operation2_na h ( p0:%1 p1:%2 p2:cmdargs_block @:<Cmd> )]
 end
 
 rule yieldc
@@ -199,19 +248,24 @@ rule nextc
 end
 
 rule cmdargs_block
-  !"<<" @:@:(head:commandx tail:())) / (@:cmdargs @:@:(p0:%@ p1:block <Extra>)?
+  !"<<" ( head:commandx tail:@:() ) /
+  %value:cmdargs @:(
+    ( p0:%value p1:block @:<Extra> ) /
+    %value
+  )
 end
 
 rule cmdargs_opt_block
-  (p0:cmdargs? p1:block <Extra>) / cmdargs
+  p0:cmdargs? p1:block @:<Extra> /
+  cmdargs
 end
 
 rule cmdargs
-  $enter_mode["cmdargs", (head:cmdarg_first tail:(comma cmdargs1)?)]
+  $enter_mode["cmdargs", head:cmdarg_first tail:comma @:cmdargs1?]
 end
 
 rule cmdargs1
-  head:cmdarg tail:(comma cmdargs1)?
+  head:cmdarg tail:comma @:cmdargs1?
 end
 
 rule cmdarg_first
@@ -223,11 +277,11 @@ rule cmdarg
 end
 
 rule cmd2args
-  $enter_mode["cmdargs", (head:cmd2arg_first tail:(comma cmd2args1)?)]
+  $enter_mode["cmdargs", head:cmd2arg_first tail:comma @:cmd2args1?]
 end
 
 rule cmd2args1
-  head:arg tail:(comma cmd2args1)?
+  head:arg tail:comma @:cmd2args1?
 end
 
 rule cmd2arg_first
@@ -235,7 +289,9 @@ rule cmd2arg_first
 end
 
 rule arg
-  p0:hash_assocs <MakeHash>) / splat_arg / ("&" s0 p0:ldefined <Block>
+  p0:hash_assocs @:<MakeHash> /
+  splat_arg /
+  "&" s0 p0:ldefined <Block>
 end
 
 rule splat_arg
@@ -251,19 +307,24 @@ rule ldefined
 end
 
 rule masgn
-  1:mlhs1 h0 "=" !"~" s0 @:((p0:%1 p1:(mrhs1 / (head:splat_arg1 tail:())) <Masgn>) / (p0:%1 p1:command <Masgn1>))
+  %1:mlhs1 h0 "=" !"~" s0 (
+    p0:%1 p1:mrhs1 /
+    head:splat_arg1 tail:() @:<Masgn> /
+    p0:%1 p1:command @:<Masgn1>
+  )
 end
 
 rule mlhs1
-  head:(mlhsp / mlhsx_splat) tail:(comma mlhs?)?) / (head:mlhsx tail:(comma @:mlhs?)
+  head:mlhsp / mlhsx_splat tail:comma @:mlhs?? /
+  head:mlhsx tail:comma @:mlhs?
 end
 
 rule mlhs
-  head:(mlhsp / mlhsx) tail:(comma mlhs?)?
+  head:mlhsp / mlhsx tail:comma @:mlhs??
 end
 
 rule mlhsp
-  h0 "(" s0 @:(p0:mlhs <Enter>) h0 @:")"
+  h0 "(" s0 ( p0:mlhs @:<Enter> ) h0 ")"
 end
 
 rule mlhsx
@@ -271,15 +332,18 @@ rule mlhsx
 end
 
 rule mlhsx_splat
-  "*" s0 @:((p0:lhs1 <Splat>) / <AnonSplat>)
+  "*" s0 (
+    p0:lhs1 @:<Splat> /
+    @:<AnonSplat>
+  )
 end
 
 rule mrhs1
-  head:mrhsx tail:(comma @:mrhs)
+  head:mrhsx tail:comma @:mrhs
 end
 
 rule mrhs
-  head:mrhsx tail:(comma mrhs)?
+  head:mrhsx tail:comma @:mrhs?
 end
 
 rule mrhsx
@@ -303,11 +367,41 @@ rule assignment
 end
 
 rule casg
-  1:lhs1 h0 @:(("=" ![~=] s0c p0:%1 p1:asgvalue <Assign>) / ("&&=" s0c p0:%1 p1:command <AndAssign>) / ("||=" s0c p0:%1 p1:command <OrAssign>) / ("+=" s0c p0:%1 p1:command <AddAssign>) / ("-=" s0c p0:%1 p1:command <SubAssign>) / ("*=" s0c p0:%1 p1:command <MulAssign>) / ("/=" s0c p0:%1 p1:command <DivAssign>) / ("%=" s0c p0:%1 p1:command <RemAssign>) / ("**=" s0c p0:%1 p1:command <PowAssign>) / ("<<=" s0c p0:%1 p1:command <ShlAssign>) / (">>=" s0c p0:%1 p1:command <ShrAssign>) / ("|=" s0c p0:%1 p1:command <BitorAssign>) / ("^=" s0c p0:%1 p1:command <BitxorAssign>) / ("&=" s0c p0:%1 p1:command <BitandAssign>))
+  %1:lhs1 h0 (
+    "=" ![~=] s0c p0:%1 p1:asgvalue <Assign> /
+    "&&=" s0c p0:%1 p1:command <AndAssign> /
+    "||=" s0c p0:%1 p1:command <OrAssign> /
+    "+=" s0c p0:%1 p1:command <AddAssign> /
+    "-=" s0c p0:%1 p1:command <SubAssign> /
+    "*=" s0c p0:%1 p1:command <MulAssign> /
+    "/=" s0c p0:%1 p1:command <DivAssign> /
+    "%=" s0c p0:%1 p1:command <RemAssign> /
+    "**=" s0c p0:%1 p1:command <PowAssign> /
+    "<<=" s0c p0:%1 p1:command <ShlAssign> /
+    ">>=" s0c p0:%1 p1:command <ShrAssign> /
+    "|=" s0c p0:%1 p1:command <BitorAssign> /
+    "^=" s0c p0:%1 p1:command <BitxorAssign> /
+    "&=" s0c p0:%1 p1:command <BitandAssign>
+  )
 end
 
 rule asg
-  1:lhs1 h0 @:(("=" ![~=] s0c p0:%1 p1:ldefined <Assign>) / ("&&=" s0c p0:%1 p1:ldefined <AndAssign>) / ("||=" s0c p0:%1 p1:ldefined <OrAssign>) / ("+=" s0c p0:%1 p1:ldefined <AddAssign>) / ("-=" s0c p0:%1 p1:ldefined <SubAssign>) / ("*=" s0c p0:%1 p1:ldefined <MulAssign>) / ("/=" s0c p0:%1 p1:ldefined <DivAssign>) / ("%=" s0c p0:%1 p1:ldefined <RemAssign>) / ("**=" s0c p0:%1 p1:ldefined <PowAssign>) / ("<<=" s0c p0:%1 p1:ldefined <ShlAssign>) / (">>=" s0c p0:%1 p1:ldefined <ShrAssign>) / ("|=" s0c p0:%1 p1:ldefined <BitorAssign>) / ("^=" s0c p0:%1 p1:ldefined <BitxorAssign>) / ("&=" s0c p0:%1 p1:ldefined <BitandAssign>))
+  %1:lhs1 h0 (
+    "=" ![~=] s0c p0:%1 p1:ldefined <Assign> /
+    "&&=" s0c p0:%1 p1:ldefined <AndAssign> /
+    "||=" s0c p0:%1 p1:ldefined <OrAssign> /
+    "+=" s0c p0:%1 p1:ldefined <AddAssign> /
+    "-=" s0c p0:%1 p1:ldefined <SubAssign> /
+    "*=" s0c p0:%1 p1:ldefined <MulAssign> /
+    "/=" s0c p0:%1 p1:ldefined <DivAssign> /
+    "%=" s0c p0:%1 p1:ldefined <RemAssign> /
+    "**=" s0c p0:%1 p1:ldefined <PowAssign> /
+    "<<=" s0c p0:%1 p1:ldefined <ShlAssign> /
+    ">>=" s0c p0:%1 p1:ldefined <ShrAssign> /
+    "|=" s0c p0:%1 p1:ldefined <BitorAssign> /
+    "^=" s0c p0:%1 p1:ldefined <BitxorAssign> /
+    "&=" s0c p0:%1 p1:ldefined <BitandAssign>
+  )
 end
 
 rule lhs1
@@ -315,7 +409,7 @@ rule lhs1
 end
 
 rule new_lvar
-  non_keyword @:(p0:$mark[lword] <Lvar>) @:!(h0 ("." / "["))
+  non_keyword ( p0:$mark[lword] @:<Lvar> ) !h0 ( "." / "[" )
 end
 
 rule asgvalue
@@ -323,59 +417,140 @@ rule asgvalue
 end
 
 rule asgargs
-  (p0:(head:arg tail:(comma @:asgargs1)) <MakeArray>) / defined
+  p0:head:arg tail:comma asgargs1 @:<MakeArray> /
+  defined
 end
 
 rule asgargs1
-  head:arg tail:(h0 comma asgargs1)?
+  head:arg tail:h0 comma @:asgargs1?
 end
 
 rule rescue_mod
-  @:short_if h0 @:!$in_mode["cmdargs"] ("rescue" !wordchar s0c @:@:(p0:%@ p1:boolean <Rescue>))?
+  %value:short_if h0 @:(
+    !$in_mode["cmdargs"] "rescue" !wordchar s0c ( p0:%value p1:boolean @:<Rescue> ) /
+    %value
+  )
 end
 
 rule short_if
-  @:range h0 @:("?" s0c 1:ldefined s0c ":" !":" s0c 2:ldefined @:(p0:%@ p1:%1 p2:%2 <ShortIf>))?
+  %value:range h0 @:(
+    ( "?" s0c %1:ldefined s0c ":" !":" s0c %2:ldefined ( p0:%value p1:%1 p2:%2 @:<ShortIf> ) ) /
+    %value
+  )
 end
 
 rule range
-  @:orop h0 @:@:(("..." s0c p0:%@ p1:(rop / orop) <Rangeexc>) / (".." s0c p0:%@ p1:(rop / orop) <Rangeinc>))?
+  %value:orop h0 @:(
+    (
+      "..." s0c p0:%value p1:rop / orop <Rangeexc> /
+      ".." s0c p0:%value p1:rop / orop <Rangeinc>
+    ) /
+    %value
+  )
 end
 
 rule orop
-  @:andop h0 @:@:("||" s0c p0:%@ p1:(rop / andop) <Orop>)*
+  %value:andop h0 @:( orop_suffix[%value] / %value )
+end
+
+rule orop_suffix[%inner_value]
+  %value:( "||" s0c p0:%inner_value p1:rop / andop <Orop> )
+  @:( orop_suffix[%value] / %value )
 end
 
 rule andop
-  @:compare h0 @:@:("&&" s0c p0:%@ p1:(rop / compare) <Andop>)*
+  %value:compare h0 @:( andop_suffix[%value] / %value )
+end
+
+rule andop_suffix[%inner_value]
+  %value:( "&&" s0c p0:%inner_value p1:rop / compare <Andop> )
+  @:( andop_suffix[%value] / %value )
 end
 
 rule compare
-  @:relop h0 @:@:(("<=>" s0c p0:%@ p1:(rop / relop) <Cmp>) / ("===" s0c p0:%@ p1:(rop / relop) <Eqq>) / ("==" s0c p0:%@ p1:(rop / relop) <Eq>) / ("!=" s0c p0:%@ p1:(rop / relop) <Neq>) / ("=~" s0c p0:%@ p1:(rop / relop) <Match>) / ("!~" s0c p0:%@ p1:(rop / relop) <Nmatch>))?
+  %value:relop h0 @:(
+    (
+      "<=>" s0c p0:%value p1:rop / relop <Cmp> /
+      "===" s0c p0:%value p1:rop / relop <Eqq> /
+      "==" s0c p0:%value p1:rop / relop <Eq> /
+      "!=" s0c p0:%value p1:rop / relop <Neq> /
+      "=~" s0c p0:%value p1:rop / relop <Match> /
+      "!~" s0c p0:%value p1:rop / relop <Nmatch>
+    ) /
+    %value
+  )
 end
 
 rule relop
-  @:bitor h0 @:@:(("<=" s0c p0:%@ p1:(rop / relop) <Lte>) / ("<" s0c p0:%@ p1:(rop / relop) <Lt>) / (">=" s0c p0:%@ p1:(rop / relop) <Gte>) / (">" s0c p0:%@ p1:(rop / relop) <Gt>))*
+  %value:bitor h0 @:( relop_suffix[%value] / %value )
+end
+
+rule relop_suffix[%inner_value]
+  %value:(
+    "<=" s0c p0:%inner_value p1:rop / relop <Lte> /
+    "<" s0c p0:%inner_value p1:rop / relop <Lt> /
+    ">=" s0c p0:%inner_value p1:rop / relop <Gte> /
+    ">" s0c p0:%inner_value p1:rop / relop <Gt>
+  )
+  @:( relop_suffix[%value] / %value )
 end
 
 rule bitor
-  @:bitand h0 @:@:(!$in_mode["block_formal_default"] ("|" s0c p0:%@ p1:(rop / bitand) <Bitor>) / ("^" s0c p0:%@ p1:(rop / bitand) <Bitxor>))*
+  %value:bitand h0 @:( bitor_suffix[%value] / %value )
+end
+
+rule bitor_suffix[%inner_value]
+  %value:(
+    !$in_mode["block_formal_default"] "|" s0c p0:%inner_value p1:rop / bitand <Bitor> /
+    "^" s0c p0:%inner_value p1:rop / bitand <Bitxor>
+  )
+  @:( bitor_suffix[%value] / %value )
 end
 
 rule bitand
-  @:shift h0 @:@:("&" s0c p0:%@ p1:(rop / shift) <Bitand>)*
+  %value:shift h0 @:( bitand_suffix[%value] / %value )
+end
+
+rule bitand_suffix[%inner_value]
+  %value:( "&" s0c p0:%inner_value p1:rop / shift <Bitand> )
+  @:( bitand_suffix[%value] / %value )
 end
 
 rule shift
-  @:add h0 @:@:(("<<" s0c p0:%@ p1:(rop / add) <Shl>) / (">>" s0c p0:%@ p1:(rop / add) <Shr>))*
+  %value:add h0 @:( shift_suffix[%value] / %value )
+end
+
+rule shift_suffix[%inner_value]
+  %value:(
+    "<<" s0c p0:%inner_value p1:rop / add <Shl> /
+    ">>" s0c p0:%inner_value p1:rop / add <Shr>
+  )
+  @:( shift_suffix[%value] / %value )
 end
 
 rule add
-  @:mul h0 @:@:(("+" s0c p0:%@ p1:(rop / mul) <Add>) / ("-" s0c p0:%@ p1:(rop / mul) <Sub>))*
+  %value:mul h0 @:( add_suffix[%value] / %value )
+end
+
+rule add_suffix[%inner_value]
+  %value:(
+    "+" s0c p0:%inner_value p1:rop / mul <Add> /
+    "-" s0c p0:%inner_value p1:rop / mul <Sub>
+  )
+  @:( add_suffix[%value] / %value )
 end
 
 rule mul
-  @:negated h0 @:@:(("*" s0c p0:%@ p1:(rop / negated) <Mul>) / ("/" s0c p0:%@ p1:(rop / negated) <Div>) / ("%" s0c p0:%@ p1:(rop / negated) <Rem>))*
+  %value:negated h0 @:( mul_suffix[%value] / %value )
+end
+
+rule mul_suffix[%inner_value]
+  %value:(
+    "*" s0c p0:%inner_value p1:rop / negated <Mul> /
+    "/" s0c p0:%inner_value p1:rop / negated <Div> /
+    "%" s0c p0:%inner_value p1:rop / negated <Rem>
+  )
+  @:( mul_suffix[%value] / %value )
 end
 
 rule uop_space
@@ -383,15 +558,22 @@ rule uop_space
 end
 
 rule negated
-  ("-" ![0-9] uop_space p0:(rop / negated) <Neg>) / pow
+  "-" ![0-9] uop_space p0:rop / negated <Neg> /
+  pow
 end
 
 rule pow
-  @:unaries h0 @:("**" s0c @:(p0:%@ p1:(rop / negated) <Pow>))?
+  %value:unaries h0 @:(
+    ( "**" s0c ( p0:%value p1:rop / negated @:<Pow> ) ) /
+    %value
+  )
 end
 
 rule unaries
-  (("!" s0c p0:(rop / unaries) <Opnot>) / ("+" uop_space p0:(rop / unaries) <Uplus>) / ("~" s0c p0:(rop / unaries) <Optilde>)) / sends
+  "!" s0c p0:rop / unaries <Opnot> /
+  "+" uop_space p0:rop / unaries <Uplus> /
+  "~" s0c p0:rop / unaries <Optilde> /
+  sends
 end
 
 rule sends
@@ -399,55 +581,91 @@ rule sends
 end
 
 rule sends1
-  @:primary @:(h0 @:((("." / "::") s0c @:((p0:%@ p1:operationl p2:paren_arguments_block? <Send>) / (p0:%@ p1:uword p2:paren_arguments_block <Send>) / (p0:%@ p1:uword <Colon2>))) / (p0:%@ p1:aref_array <Aref>)))+
+  <fixme rule>
 end
 
 rule sends1_lhs
-  @:primary @:(h0 @:((("." / "::") s0c @:((p0:%@ p1:operationl_na p2:paren_arguments_block? <Send>) / (p0:%@ p1:uword p2:paren_arguments_block <Send>) / (p0:%@ p1:uword <Colon2>))) / (p0:%@ p1:aref_array <Aref>)))+
+  <fixme rule>
 end
 
 rule aref_array
-  @:array @:(h0 @:(p0:%@ p1:block <Extra>))?
+  %value:array @:(
+    ( h0 ( p0:%value p1:block @:<Extra> ) ) /
+    %value
+  )
 end
 
 rule paren_arguments
-  $leave_mode["cmdarg_first", $leave_mode["cmdargs", ("(" @:arguments s0 ")" h0 @:@:(p0:%@ p1:block <Extra>)?)]]
+  $leave_mode["cmdarg_first", $leave_mode["cmdargs", "(" %value:arguments s0 ")" h0 @:(
+    ( p0:%value p1:block @:<Extra> ) /
+    %value
+  )]]
 end
 
 rule paren_arguments_block
-  h0 @:(paren_arguments / (p0:() p1:block <Extra>))
+  h0 (
+    @:paren_arguments /
+    p0:() p1:block @:<Extra>
+  )
 end
 
 rule array
-  "[" @:arguments comma? s0c @:"]"
+  "[" @:arguments comma? s0c "]"
 end
 
 rule arguments
-  s0c @:((head:commandx tail:()) / (head:arg tail:opt_comma_arguments)?) @:s0c
+  s0c (
+    head:commandx tail:@:() /
+    head:arg tail:@:opt_comma_arguments?
+  ) s0c
 end
 
 rule opt_comma_arguments
-  (s0c comma s0c (head:arg tail:opt_comma_arguments))?
+  s0c comma s0c ( head:arg tail:@:opt_comma_arguments )?
 end
 
 rule primary
-  $leave_mode["block_formal_default", $leave_mode["no_do_block", $leave_mode["cmdargs", (string_regexp_words / primary1 / primary2)]]] / self_send
+  $leave_mode["block_formal_default", $leave_mode["no_do_block", $leave_mode["cmdargs", string_regexp_words / primary1 / primary2]]] /
+  self_send
 end
 
 rule primary1
-  $leave_mode["cmdarg_first", (literal / here_doc / yield / super / break / next / redo / retry / ("return" p0:() <Return>) / for_in / case / variable / defclass / defmodule / defmethod / begin_end / parenthesized / paren_definedp)]
+  $leave_mode["cmdarg_first", literal /
+  here_doc /
+  yield /
+  super /
+  break /
+  next /
+  redo /
+  retry /
+  "return" p0:() <Return> /
+  for_in /
+  case /
+  variable /
+  defclass /
+  defmodule /
+  defmethod /
+  begin_end /
+  parenthesized /
+  paren_definedp]
 end
 
 rule primary2
-  !$in_mode["cmdarg_first"] (if / unless / while / until)
+  !$in_mode["cmdarg_first"] if / unless / while / until
 end
 
 rule yield
-  "yield" @:((p0:paren_arguments_block <Yield>) / (!wordchar <Yield0>))
+  "yield" (
+    p0:paren_arguments_block @:<Yield> /
+    !wordchar <Yield0>
+  )
 end
 
 rule super
-  "super" @:((p0:paren_arguments_block <Super>) / (!wordchar <Zsuper>))
+  "super" (
+    p0:paren_arguments_block @:<Super> /
+    !wordchar <Zsuper>
+  )
 end
 
 rule break
@@ -467,15 +685,16 @@ rule retry
 end
 
 rule if
-  "if" !wordchar @:if2 "end" @:!wordchar
+  "if" !wordchar @:if2 "end" !wordchar
 end
 
 rule if2
-  s0 p0:boolean p1:(then @:compstmt) p2:iftail? <If>
+  s0 p0:boolean p1:then compstmt p2:iftail? <If>
 end
 
 rule iftail
-  ("elsif" !wordchar @:if2) / else
+  "elsif" !wordchar @:if2 /
+  else
 end
 
 rule else
@@ -483,63 +702,69 @@ rule else
 end
 
 rule then
-  dropped_comment h0 ((then1 dropped_comment @:term?) / (term @:then1?) / (":" @:dropped_comment)) @:s0
+  dropped_comment h0 (
+    then1 dropped_comment term? /
+    term then1? /
+    ":" dropped_comment
+  ) @:s0
 end
 
 rule then1
-  "then" @:!wordchar
+  "then" !@:wordchar
 end
 
 rule unless
-  "unless" !wordchar s0 @:(p0:boolean p1:(then @:compstmt) p2:else? <Unless>) "end" @:!wordchar
+  "unless" !wordchar s0 ( p0:boolean p1:then compstmt p2:else? @:<Unless> ) "end" !wordchar
 end
 
 rule while
-  "while" !wordchar s0 @:@:(p0:boolean_no_do p1:do_compstmt_end <While>)
+  "while" !wordchar s0 ( p0:boolean_no_do p1:do_compstmt_end @:<While> )
 end
 
 rule until
-  "until" !wordchar s0 @:@:(p0:boolean_no_do p1:do_compstmt_end <Until>)
+  "until" !wordchar s0 ( p0:boolean_no_do p1:do_compstmt_end @:<Until> )
 end
 
 rule for_in
-  "for" !wordchar s0 p0:mlhs_opt_comma p1:(h0 "in" !wordchar s0 @:boolean_no_do) p2:do_compstmt_end <ForIn>
+  "for" !wordchar s0 p0:mlhs_opt_comma p1:h0 "in" !wordchar s0 boolean_no_do p2:do_compstmt_end <ForIn>
 end
 
 rule mlhs_opt_comma
-  @:mlhs @:(h0 ",")?
+  @:mlhs ( h0 "," )?
 end
 
 rule boolean_no_do
-  @:$enter_mode["no_do_block", boolean] @:dropped_comment
+  $enter_mode["no_do_block", @:boolean] dropped_comment
 end
 
 rule do_compstmt_end
-  do @:compstmt "end" @:!wordchar
+  do @:compstmt "end" !wordchar
 end
 
 rule do
-  h0 (term / ":" / "do") @:s0
+  h0 ( term / ":" / "do" ) @:s0
 end
 
 rule case
-  "case" !wordchar s0c @:(p0:boolean? p1:(s0c @:when) p2:(s0 else)? <Case>) s0 "end" @:!wordchar
+  "case" !wordchar s0c ( p0:boolean? p1:s0c when p2:s0 else? @:<Case> ) s0 "end" !wordchar
 end
 
 rule when
-  opt_terms dropped_comment opt_terms "when" !wordchar s0 1:arguments_splat then @:(head:(p0:%1 p1:compstmt <When>) tail:when?)
+  opt_terms dropped_comment opt_terms "when" !wordchar s0 %1:arguments_splat then ( head:p0:%1 p1:compstmt <When> tail:@:when? )
 end
 
 rule arguments_splat
-  head:splat_arg tail:(s0 comma arguments_splat?)?
+  head:splat_arg tail:s0 comma @:arguments_splat??
 end
 
 rule self_send
-  p0:(non_keyword @:(fid / lword)) p1:paren_arguments_block? <SelfSend>) / (p0:uword p1:paren_arguments_block <SelfSend>
+  p0:non_keyword ( fid / lword ) p1:paren_arguments_block? @:<SelfSend> /
+  p0:uword p1:paren_arguments_block @:<SelfSend>
 end
 
 rule non_keyword
-  !((("if" / "unless" / "until" / "for" / "in" / "while" / "and" / "or" / "not" / "begin" / "then" / "else" / "elsif" / "end" / "case" / "when" / "class" / "module" / "def" / "do" / "rescue" / "ensure" / "yield" / "return" / "yield" / "super" / "next") @:non_word_char) / "defined?")
+  !( "if" / "unless" / "until" / "for" / "in" / "while" / "and" / "or" / "not" / "begin" / "then" / "else" / "elsif" / "end" / "case" / "when" / "class" / "module" / "def" / "do" / "rescue" / "ensure" / "yield" / "return" / "yield" / "super" / "next" ) @:non_word_char /
+  "defined?"
 end
 
 rule non_word_char
@@ -547,11 +772,11 @@ rule non_word_char
 end
 
 rule operation
-  non_keyword @:(fid / lword / uword)
+  non_keyword ( @:fid / @:lword / @:uword )
 end
 
 rule operation_na
-  non_keyword @:(fid_na / lword / uword)
+  non_keyword ( @:fid_na / @:lword / @:uword )
 end
 
 rule operation2
@@ -559,7 +784,7 @@ rule operation2
 end
 
 rule aref_assign
-  @:"[]=" @:!"="
+  @:"[]=" !"="
 end
 
 rule operation2_na
@@ -575,11 +800,18 @@ rule operationl_na
 end
 
 rule fid
-  word @:("?" / (1:"!" !"=" @:%1) / (1:"=" ![>=~] @:%1))
+  word (
+    @:"?" /
+    %1:"!" !"=" @:%1 /
+    %1:"=" ![>=~] @:%1
+  )
 end
 
 rule fid_na
-  word @:("?" / (1:"!" !"=" @:%1))
+  word (
+    @:"?" /
+    %1:"!" !"=" @:%1
+  )
 end
 
 rule operator
@@ -587,11 +819,11 @@ rule operator
 end
 
 rule begin_end
-  "begin" !wordchar s0 @:bodystmt @:"end"
+  "begin" !wordchar s0 @:bodystmt "end"
 end
 
 rule parenthesized
-  "(" s0 @:compstmt @:")"
+  "(" s0 @:compstmt ")"
 end
 
 rule paren_definedp
@@ -599,35 +831,51 @@ rule paren_definedp
 end
 
 rule literal
-  number / (p0:array <MakeArray>) / symbol / hash_literal / char_literal
+  number /
+  p0:array @:<MakeArray> /
+  symbol /
+  hash_literal /
+  char_literal
 end
 
 rule char_literal
-  "?" @:(("\\" @:(backslash_char / (()? $error["bad backslash"])?)) / (p0:[!-\xff] <Char>))
+  "?" (
+    "\\" (
+      @:backslash_char /
+      ( ? $error["bad backslash"] )?
+    ) /
+    p0:[!-\xff] @:<Char>
+  )
 end
 
 rule backslash_char
-  (p0:[abefnrstv\\] <BackslashChar>) / ("x" p0:hex_integer_max_two_digits <Hexchar>) / (p0:octal_integer_max_three_digits <Octchar>) / ctrl_meta_char_literal
+  p0:[abefnrstv\] @:<BackslashChar> /
+  "x" p0:hex_integer_max_two_digits <Hexchar> /
+  p0:octal_integer_max_three_digits @:<Octchar> /
+  ctrl_meta_char_literal
 end
 
 rule ctrl_meta_char_literal
-  ("C-" / "c") p0:non_control_char_literal <Ctrl>) / ("M-\\C-" p0:non_control_char_literal <MetaCtrl>) / ("M-" p0:non_control_char_literal <Meta>
+  ( "C-" / "c" ) p0:non_control_char_literal <Ctrl> /
+  "M-\\C-" p0:non_control_char_literal <MetaCtrl> /
+  "M-" p0:non_control_char_literal <Meta>
 end
 
 rule non_control_char_literal
-  p0:non_control_char <Char>
+  p0:non_control_char @:<Char>
 end
 
 rule octal_integer_max_three_digits
-  octdigit (octdigit octdigit?)?
+  octdigit ( octdigit @:octdigit? )?
 end
 
 rule hex_integer_max_two_digits
-  hexdigit hexdigit?
+  hexdigit @:hexdigit?
 end
 
 rule number
-  ("-" p0:number1 <Neg>) / number1
+  "-" p0:number1 <Neg> /
+  number1
 end
 
 rule number1
@@ -635,31 +883,34 @@ rule number1
 end
 
 rule hex_literal
-  "0x" p0:(hexdigit ("_"? hexdigit)*) <Hexint>
+  "0x" p0:hexdigit ( "_"? hexdigit )* <Hexint>
 end
 
 rule dec_literal
-  p0:dec_digits <Int>
+  p0:dec_digits @:<Int>
 end
 
 rule dec_digits
-  digit ("_"? digit)*
+  digit ( "_"? @:digit )*
 end
 
 rule oct_literal
-  "0" p0:(octdigit ("_"? octdigit)*) <Octint>
+  "0" p0:octdigit ( "_"? octdigit )* <Octint>
 end
 
 rule bin_literal
-  "0b" p0:(bindigit ("_"? bindigit)*) <Binint>
+  "0b" p0:bindigit ( "_"? bindigit )* <Binint>
 end
 
 rule float_literal
-  p0:(dec_digits "." dec_digits ("e" "-"? dec_digits)?) <Float>
+  p0:dec_digits "." dec_digits ( "e" "-"? dec_digits )? @:<Float>
 end
 
 rule symbol
-  ":" @:((p0:(ivarname / cvarname / gvarname / operation2 / symbol_sv) <Symbol>) / (p0:strings <SymbolFromString>))
+  ":" (
+    p0:ivarname / cvarname / gvarname / operation2 / symbol_sv @:<Symbol> /
+    p0:strings @:<SymbolFromString>
+  )
 end
 
 rule symbol_sv
@@ -667,7 +918,7 @@ rule symbol_sv
 end
 
 rule hash_literal
-  "{" s0c $enter_mode["hash_comma", @:(p0:hash_assocs0 <MakeHash>)] s0c comma? s0c @:"}"
+  <fixme rule>
 end
 
 rule hash_assocs0
@@ -675,7 +926,11 @@ rule hash_assocs0
 end
 
 rule hash_assocs
-  head:((1:word s0c ":" !":" s0c p0:(p0:%1 <Symbol>) p1:ldefined <Assoc>) / (1:ldefined s0c ("=>" / $in_mode["hash_comma"] ",") s0c p0:%1 p1:ldefined <Assoc>)) tail:(s0c comma s0c hash_assocs)?
+  head:%1:word s0c ":" !":" s0c p0:p0:%1 <Symbol> p1:ldefined <Assoc> /
+  %1:ldefined s0c (
+    "=>" /
+    $in_mode["hash_comma"] ","
+  ) s0c p0:%1 p1:ldefined <Assoc> tail:s0c comma s0c @:hash_assocs?
 end
 
 rule variable
@@ -683,7 +938,9 @@ rule variable
 end
 
 rule known_lvar
-  @:(p0:$is_marked[lword] <Lvar>) @:!("?" / "!" / (h0 @:"("))
+  ( p0:$is_marked[lword] @:<Lvar> ) !"?" /
+  "!" /
+  h0 "("
 end
 
 rule nil
@@ -711,7 +968,7 @@ rule __file__
 end
 
 rule cvar
-  p0:cvarname <Cvar>
+  p0:cvarname @:<Cvar>
 end
 
 rule cvarname
@@ -719,7 +976,7 @@ rule cvarname
 end
 
 rule ivar
-  p0:ivarname <Ivar>
+  p0:ivarname @:<Ivar>
 end
 
 rule ivarname
@@ -727,15 +984,39 @@ rule ivarname
 end
 
 rule gvar
-  p0:gvarname <Gvar>
+  p0:gvarname @:<Gvar>
 end
 
 rule gvarname
-  "$" @:(word / ("-" @:(uchar / lchar)))
+  "$" (
+    @:word /
+    "-" ( @:uchar / @:lchar )
+  )
 end
 
 rule special_variables
-  "$" @:(("!" <SvException>) / ("@" <SvBacktrace>) / ("~" <SvMatchInfo>) / ("=" <SvCaseInsensitive>) / ("/" <SvInputRecordSeparator>) / ("\\" <SvOutputRecordSeparator>) / ("," <SvOutputFieldSeparator>) / (";" <SvStringSplitSeparator>) / ("." <SvCurrentInputLine>) / ("<" <SvCompleteInput>) / (">" <SvPrintDefaultOutput>) / ("_" <SvInputLastLine>) / ("0" <SvScriptName>) / ("*" <SvCommandLineArguments>) / ("$" <SvInterpreterPid>) / ("?" <SvChildStatus>) / (":" <SvLoadPath>) / ("\"" <SvLoadedModules>) / back_ref_0 / nth_ref_0)
+  "$" (
+    "!" <SvException> /
+    "@" <SvBacktrace> /
+    "~" <SvMatchInfo> /
+    "=" <SvCaseInsensitive> /
+    "/" <SvInputRecordSeparator> /
+    "\\" <SvOutputRecordSeparator> /
+    "," <SvOutputFieldSeparator> /
+    ";" <SvStringSplitSeparator> /
+    "." <SvCurrentInputLine> /
+    "<" <SvCompleteInput> /
+    ">" <SvPrintDefaultOutput> /
+    "_" <SvInputLastLine> /
+    "0" <SvScriptName> /
+    "*" <SvCommandLineArguments> /
+    "$" <SvInterpreterPid> /
+    "?" <SvChildStatus> /
+    ":" <SvLoadPath> /
+    "\"" <SvLoadedModules> /
+    @:back_ref_0 /
+    @:nth_ref_0
+  )
 end
 
 rule back_ref
@@ -743,11 +1024,14 @@ rule back_ref
 end
 
 rule back_ref_0
-  "&" <SvMatchedString>) / ("`" <SvMatchLefthand>) / ("'" <SvMatchRighthand>) / ("+" <SvMatchLastBracket>
+  "&" <SvMatchedString> /
+  "`" <SvMatchLefthand> /
+  "'" <SvMatchRighthand> /
+  "+" <SvMatchLastBracket>
 end
 
 rule nth_ref_0
-  p0:dec_digits <SvMatchGroup>
+  p0:dec_digits @:<SvMatchGroup>
 end
 
 rule nth_ref
@@ -755,23 +1039,23 @@ rule nth_ref
 end
 
 rule constant
-  @:(p0:uword <Constant>) @:!(h0 "(")
+  ( p0:uword @:<Constant> ) !h0 "("
 end
 
 rule toplevel_constant
-  "::" @:@:(p0:uword <ToplevelConstant>)
+  "::" ( p0:uword @:<ToplevelConstant> )
 end
 
 rule defclass
-  "class" !wordchar s0 $new_mark_scope[@:(defsclass / defclass1)] s0 @:"end"
+  <fixme rule>
 end
 
 rule defclass1
-  p0:cpath p1:superclass p2:bodystmt <Class>
+  p0:cpath p1:superclass p2:bodystmt @:<Class>
 end
 
 rule defmodule
-  "module" !wordchar s0 @:(p0:cpath p1:(dropped_comment terms @:$new_mark_scope[bodystmt]) <Module>) s0 @:"end"
+  "module" !wordchar s0 ( p0:cpath p1:dropped_comment terms $new_mark_scope[bodystmt] @:<Module> ) s0 "end"
 end
 
 rule cpath
@@ -779,43 +1063,46 @@ rule cpath
 end
 
 rule cname
-  (lword $error["class/module name must be constant"])? @:uword
+  ( lword $error["class/module name must be constant"] )? @:uword
 end
 
 rule superclass
-  dropped_comment term @:@:()) / (h0 "<" @:boolean_opt_terms @:dropped_comment
+  dropped_comment term @:() /
+  h0 "<" @:boolean_opt_terms dropped_comment
 end
 
 rule defsclass
-  "<<" p0:boolean_opt_terms p1:(dropped_comment @:bodystmt) <Sclass>
+  "<<" p0:boolean_opt_terms p1:dropped_comment bodystmt <Sclass>
 end
 
 rule boolean_opt_terms
-  s0 @:boolean @:opt_terms
+  s0 @:boolean opt_terms
 end
 
 rule defmethod
-  "def" !wordchar s0 @:(defmethod1 / def_singleton_method) s0 "end" @:!wordchar
+  "def" !wordchar s0 ( @:defmethod1 / @:def_singleton_method ) s0 "end" !wordchar
 end
 
 rule defop
-  @:operation2 @:h0
+  @:operation2 h0
 end
 
 rule defmethod1
-  1:defop @:$new_mark_scope[@:(p0:%1 p1:defformals p2:bodystmt <Def>)]
+  %1:defop $new_mark_scope[p0:%1 p1:defformals p2:bodystmt @:<Def>]
 end
 
 rule def_singleton_method
-  1:(parenthesized / variable) ("::" / ".") 2:defop @:$new_mark_scope[@:(p0:%1 p1:%2 p2:defformals p3:bodystmt <Defs>)]
+  %1:parenthesized / variable ( "::" / "." ) %2:defop $new_mark_scope[p0:%1 p1:%2 p2:defformals p3:bodystmt @:<Defs>]
 end
 
 rule defformals
-  dropped_comment terms @:@:()) / ("(" s0 @:mformals? s0 ")" @:dropped_comment) / (@:mformals? dropped_comment @:terms
+  dropped_comment terms @:() /
+  "(" s0 @:mformals? s0 ")" dropped_comment /
+  @:mformals? dropped_comment terms
 end
 
 rule mformals
-  head:mformal tail:(comma mformals)?
+  head:mformal tail:comma @:mformals?
 end
 
 rule mformal
@@ -823,11 +1110,17 @@ rule mformal
 end
 
 rule mformal1
-  @:$mark[lword] @:(h0 "=" s0 @:(p0:%@ p1:defined <Optarg>))?
+  $mark[%value:lword] @:(
+    ( h0 "=" s0 ( p0:%value p1:defined @:<Optarg> ) ) /
+    %value
+  )
 end
 
 rule splat_formal
-  "*" @:((p0:$mark[lword] <Splat>) / <AnonSplat>)
+  "*" (
+    p0:$mark[lword] @:<Splat> /
+    @:<AnonSplat>
+  )
 end
 
 rule blockvar
@@ -835,27 +1128,28 @@ rule blockvar
 end
 
 rule block
-  $leave_mode["cmdargs", $leave_mode["cmdarg_first", (brace_block / !$in_mode["no_do_block"] do_block)]]
+  $leave_mode["cmdargs", $leave_mode["cmdarg_first", brace_block /
+  !$in_mode["no_do_block"] do_block]]
 end
 
 rule brace_block
-  "{" s0c $add_mark_scope[@:(p0:bpformals? p1:compstmt <BraceBlock>)] s0 @:"}"
+  <fixme rule>
 end
 
 rule do_block
-  "do" !wordchar s0c $add_mark_scope[@:(p0:bpformals? p1:compstmt <DoBlock>)] "end" @:!wordchar
+  <fixme rule>
 end
 
 rule bpformals
-  "|" s0 @:bformals? s0 ("," s0)? @:"|"
+  "|" s0 @:bformals? s0 ( "," s0 )? "|"
 end
 
 rule bformals
-  head:bformal tail:(s0 comma bformals)?
+  head:bformal tail:s0 comma @:bformals?
 end
 
 rule bformal
-  @:splat_formal / @:blockvar / @:mlhsp / @:ivar / ($mark[@:lword] @:(s0 "=" s0 @:(p0:%@ p1:$enter_mode["block_formal_default", ldefined] <Optarg>))?)
+  <fixme rule>
 end
 
 rule comma
@@ -863,19 +1157,20 @@ rule comma
 end
 
 rule dropped_comment
-  (h0 comment_line)?
+  h0 @:comment_line?
 end
 
 rule unassociated_comment
-  @:@:(p0:comment_lines <UnassociatedComment>) / @:begin_end_comment
+  p0:comment_lines @:<UnassociatedComment> /
+  begin_end_comment
 end
 
 rule comment_lines
-  head:comment_line tail:(nl h0 comment_lines)?
+  head:comment_line tail:nl h0 @:comment_lines?
 end
 
 rule comment_line
-  "#" h0 @:@:comment_char*
+  "#" h0 @:comment_char*
 end
 
 rule comment_char
@@ -883,23 +1178,44 @@ rule comment_char
 end
 
 rule begin_end_comment
-  "=begin" h0 @:(p0:(!(nl "=end") ([ -~] / "\t" / nl))* <BeginEndComment>) nl @:"=end"
+  "=begin" h0 ( p0:!nl "=end" ( [ -~] / "\t" / nl )* @:<BeginEndComment> ) nl "=end"
 end
 
 rule string_regexp_words
-  "/" @:re) / strings / ("`" @:system) / ("%" @:((p0:("q" @:sqstring_balanced) <Lqstring>) / (p0:(("Q" @:(string_balanced / string_balanced_spc)) / string_balanced) <Uqstring>) / ("w" @:$enter_mode["words", (p0:sqstring_balanced <Lwords>)]) / ("W" @:$enter_mode["words", (p0:string_balanced <Uwords>)]) / ("r" @:re_balanced) / ("x" p0:string_balanced <Xsystem>))
+  "/" @:re /
+  strings /
+  "`" @:system /
+  "%" (
+    p0:"q" sqstring_balanced @:<Lqstring> /
+    p0:"Q" ( string_balanced / string_balanced_spc ) /
+    string_balanced @:<Uqstring> /
+    "w" $enter_mode["words", p0:sqstring_balanced @:<Lwords>] /
+    "W" $enter_mode["words", p0:string_balanced @:<Uwords>] /
+    "r" @:re_balanced /
+    "x" p0:string_balanced <Xsystem>
+  )
 end
 
 rule strings
-  "\"" p0:string1 <String>) / ("'" p0:sqstring1 <Sqstring>
+  "\"" p0:string1 <String> /
+  "'" p0:sqstring1 <Sqstring>
 end
 
 rule string1
-  "\"" @:(h0 "\"" @:string1)?) / (head:(string2 / ("\\" @:backslash_char) / string_expr) tail:string1
+  "\"" ( h0 "\"" @:string1 )? /
+  head:string2 /
+  "\" backslash_char /
+  string_expr tail:@:string1
 end
 
 rule string2
-  (!("\"" / ("#" @:[{@$]) / ("\\" @:[abefnrstvx0123456789cCM])) (("\\" @:nl) / (("\\" @:non_control_char) / non_control_char_tab_nl)))+
+  !"\"" /
+  "#" [{@$] /
+  "\" [abefnrstvx0123456789cCM] (
+    "\" @:nl /
+    "\" @:non_control_char /
+    @:non_control_char_tab_nl
+  )+
 end
 
 rule non_control_char_tab_nl
@@ -907,11 +1223,15 @@ rule non_control_char_tab_nl
 end
 
 rule sqstring1
-  "'" @:(h0 "'" @:sqstring1)?) / (head:sqstring2 tail:sqstring1
+  "'" ( h0 "'" @:sqstring1 )? /
+  head:sqstring2 tail:@:sqstring1
 end
 
 rule sqstring2
-  (!"'" (("\\" @:['\\]) / non_control_char_tab_nl))+
+  !"'" (
+    "\" @:['\] /
+    @:non_control_char_tab_nl
+  )+
 end
 
 rule string_balanced
@@ -919,63 +1239,94 @@ rule string_balanced
 end
 
 rule string_balanced1
-  arg0:"(" string1_balanced[%arg0, ")"]) / (arg0:"<" string1_balanced[%arg0, ">"]) / (arg0:"{" string1_balanced[%arg0, "}"]) / (arg0:"[" string1_balanced[%arg0, "]"]
+  string1_balanced["(", ")"] /
+  string1_balanced["<", ">"] /
+  string1_balanced["{", "}"] /
+  string1_balanced["[", "]"]
 end
 
 rule string_balanced_any
-  arg0:1:([!\"#$%&')*+,-./:;<>?@\\]^_`|}~] / !$in_mode["cmdarg_first"] "=") string1_balanced[%arg0, %1]
+  %arg0:#<SimpleNode:0x00000002be86b8> @:string1_balanced[%arg0, %1]
 end
 
 rule string_balanced_spc
-  arg0:1:" " string1_balanced[%arg0, %1]
+  %arg0:#<SimpleNode:0x00000002bcfb18> @:string1_balanced[%arg0, %1]
 end
 
-rule string1_balanced[open, close]
-  $match[%close] @:()) / (head:(string2_balanced[%open, %close] / ("\\" @:backslash_char) / $in_mode["words"] (s <Wordsep>) / string_expr / string1_balanced_sub[%open, %close]) tail:string1_balanced[%open, %close]
+rule string1_balanced[%open, %close]
+  $match[%close] @:() /
+  head:string2_balanced[%open, %close] /
+  "\" backslash_char /
+  $in_mode["words"] s <Wordsep> /
+  string_expr /
+  string1_balanced_sub[%open, %close] tail:@:string1_balanced[%open, %close]
 end
 
-rule string1_balanced_sub[open, close]
-  p0:$match[%open] p1:string1_balanced[%open, %close] p2:%close <Substring>
+rule string1_balanced_sub[%open, %close]
+  p0:$match[%open] p1:string1_balanced[%open, %close] p2:%close @:<Substring>
 end
 
-rule string2_balanced[open, close]
-  (!($match[%close] / $match[%open] / ("#" @:[{@$]) / ("\\" @:[abefnrstvx0123456789cCM]) / $in_mode["words"] s) (("\\" 1:nl @:$in_mode["words"] %1?) / (("\\" @:(non_control_char / $match[%close])) / non_control_char_tab_nl)))+
+rule string2_balanced[%open, %close]
+  !$match[%close] /
+  $match[%open] /
+  "#" [{@$] /
+  "\" [abefnrstvx0123456789cCM] /
+  $in_mode["words"] s (
+    "\" %1:nl $in_mode["words"] @:%1? /
+    "\" ( @:non_control_char / @:$match[%close] ) /
+    @:non_control_char_tab_nl
+  )+
 end
 
 rule system
-  p0:string1_balanced["`", "`"] <System>
+  p0:string1_balanced["`", "`"] @:<System>
 end
 
 rule sqstring_balanced
-  (arg0:"(" sqstring1_balanced[%arg0, ")"]) / (arg0:"<" sqstring1_balanced[%arg0, ">"]) / (arg0:"{" sqstring1_balanced[%arg0, "}"]) / (arg0:"[" sqstring1_balanced[%arg0, "]"]) / bsqstring_any
+  sqstring1_balanced["(", ")"] /
+  sqstring1_balanced["<", ">"] /
+  sqstring1_balanced["{", "}"] /
+  sqstring1_balanced["[", "]"] /
+  bsqstring_any
 end
 
 rule bsqstring_any
-  arg0:1:[ !\"#$%&')*+,-./:;<=>?@\\]^_`|}~] sqstring1_balanced[%arg0, %1]
+  %arg0:#<SimpleNode:0x00000002ac2b58> @:sqstring1_balanced[%arg0, %1]
 end
 
-rule sqstring1_balanced[open, close]
-  $match[%close] @:()) / (head:(sqstring2_balanced[%open, %close] / $in_mode["words"] (s <Wordsep>) / sqstring1_balanced_sub[%open, %close]) tail:sqstring1_balanced[%open, %close]
+rule sqstring1_balanced[%open, %close]
+  $match[%close] @:() /
+  head:sqstring2_balanced[%open, %close] /
+  $in_mode["words"] s <Wordsep> /
+  sqstring1_balanced_sub[%open, %close] tail:@:sqstring1_balanced[%open, %close]
 end
 
-rule sqstring1_balanced_sub[open, close]
-  p0:$match[%open] p1:sqstring1_balanced[%open, %close] p2:%close <Substring>
+rule sqstring1_balanced_sub[%open, %close]
+  p0:$match[%open] p1:sqstring1_balanced[%open, %close] p2:%close @:<Substring>
 end
 
-rule sqstring2_balanced[open, close]
-  (!($match[%close] / $match[%open] / $in_mode["words"] s) (("\\" @:("\\" / $match[%close] / " " / nl)) / non_control_char_tab_nl))+
+rule sqstring2_balanced[%open, %close]
+  !$match[%close] /
+  $match[%open] /
+  $in_mode["words"] s (
+    "\" ( @:"\" / @:$match[%close] / @:" " / @:nl ) /
+    @:non_control_char_tab_nl
+  )+
 end
 
 rule string_expr
-  "#" @:(string_block_expr / ivar / cvar / gvar / back_ref / nth_ref)
+  "#" ( @:string_block_expr / @:ivar / @:cvar / @:gvar / @:back_ref / @:nth_ref )
 end
 
 rule string_block_expr
-  "{" @:$leave_mode["cmdarg_first", $leave_mode["cmdargs", compstmt]] @:"}"
+  "{" $leave_mode["cmdarg_first", $leave_mode["cmdargs", @:compstmt]] "}"
 end
 
 rule here_doc
-  "<<" @:(("-" @:$enter_mode["here_doc_space", here_doc_x]) / here_doc_x)
+  "<<" (
+    "-" $enter_mode["here_doc_space", @:here_doc_x] /
+    @:here_doc_x
+  )
 end
 
 rule here_doc_x
@@ -983,31 +1334,43 @@ rule here_doc_x
 end
 
 rule dq_here_doc
-  (("\"" 1:dq_here_doc_limiter @:"\"") / 1:here_doc_limiter) p0:%1 p1: <HereDoc>
+  (
+    "\"" %1:dq_here_doc_limiter "\"" /
+    %1:here_doc_limiter
+  ) p0:%1 p1: <HereDoc>
 end
 
 rule dq_here_doc_limiter
-  (!"\"" @:non_control_char_tab_nl)+
+  !"\"" @:non_control_char_tab_nl+
 end
 
 rule here_doc_limiter
   wordchar+
 end
 
-rule dq_here_doc_1[limiter]
-  nl $in_mode["here_doc_space"] hx? $match[%limiter] nl @:()) / (head:(dq_here_doc_2[%limiter] / ("\\" @:backslash_char) / string_expr) tail:dq_here_doc_1[%limiter]
+rule dq_here_doc_1[%limiter]
+  nl $in_mode["here_doc_space"] hx? $match[%limiter] nl @:() /
+  head:dq_here_doc_2[%limiter] /
+  "\" backslash_char /
+  string_expr tail:@:dq_here_doc_1[%limiter]
 end
 
-rule dq_here_doc_2[limiter]
-  (!((nl $in_mode["here_doc_space"] hx? $match[%limiter] @:nl) / ("#" @:[{@$]) / ("\\" @:[abefnrstvx0123456789cCM])) (("\\" @:nl) / (("\\" @:[#\"\\]) / non_control_char_tab_nl)))+
+rule dq_here_doc_2[%limiter]
+  !nl $in_mode["here_doc_space"] hx? $match[%limiter] nl /
+  "#" [{@$] /
+  "\" [abefnrstvx0123456789cCM] (
+    "\" @:nl /
+    "\" @:[#\"\] /
+    @:non_control_char_tab_nl
+  )+
 end
 
 rule sq_here_doc
-  "'" 1:sq_here_doc_limiter @:"'") @:@:(p0:%1 p1: <SqHereDoc>
+  ( "'" %1:sq_here_doc_limiter "'" ) ( p0:%1 p1: @:<SqHereDoc> )
 end
 
 rule sq_here_doc_limiter
-  (!"'" @:non_control_char_tab_nl)+
+  !"'" @:non_control_char_tab_nl+
 end
 
 rule re
@@ -1015,7 +1378,8 @@ rule re
 end
 
 rule can_re_start_with_space
-  !$in_mode["cmdarg_first"] @: / !(" " / nl)
+  !$in_mode["cmdarg_first"]  /
+  !" " / nl
 end
 
 rule re_flags
@@ -1023,35 +1387,58 @@ rule re_flags
 end
 
 rule re1
-  "/" @:()) / (head:(re2 / string_expr) tail:re1
+  "/" @:() /
+  head:re2 / string_expr tail:@:re1
 end
 
 rule re2
-  (!("/" / ("#" @:[{@$])) (("\\" @:(nl / "/" / ("\\" @:"\\\\") / ("#" @:"\\#"))) / non_control_char_tab_nl))+
+  !"/" /
+  "#" [{@$] (
+    "\" (
+      @:nl /
+      @:"/" /
+      "\" @:"\\" /
+      "#" @:"\#"
+    ) /
+    @:non_control_char_tab_nl
+  )+
 end
 
 rule re_balanced
-  p0:rebal0 p1:re_flags <Re>
+  p0:rebal0 p1:re_flags @:<Re>
 end
 
 rule rebal0
-  (arg0:"(" rebal1[%arg0, ")"]) / (arg0:"<" rebal1[%arg0, ">"]) / (arg0:"{" rebal1[%arg0, "}"]) / (arg0:"[" rebal1[%arg0, "]"]) / rebal_any
+  rebal1["(", ")"] /
+  rebal1["<", ">"] /
+  rebal1["{", "}"] /
+  rebal1["[", "]"] /
+  rebal_any
 end
 
 rule rebal_any
-  arg0:1:[ !\"#$%&')*+,-./:;<=>?@\\]^_`|}~] rebal1[%arg0, %1]
+  %arg0:#<SimpleNode:0x00000002b9d898> @:rebal1[%arg0, %1]
 end
 
-rule rebal1[open, close]
-  $match[%close] @:()) / (head:(rebal2[%open, %close] / string_expr / rebal1_sub[%open, %close]) tail:rebal1[%open, %close]
+rule rebal1[%open, %close]
+  $match[%close] @:() /
+  head:rebal2[%open, %close] /
+  string_expr /
+  rebal1_sub[%open, %close] tail:@:rebal1[%open, %close]
 end
 
-rule rebal1_sub[open, close]
-  p0:$match[%open] p1:rebal1[%open, %close] p2:%close <Substring>
+rule rebal1_sub[%open, %close]
+  p0:$match[%open] p1:rebal1[%open, %close] p2:%close @:<Substring>
 end
 
-rule rebal2[open, close]
-  (!($match[%close] / $match[%open] / ("#" @:[{@$])) (("\\" @:nl) / ("\\" @:non_control_char_tab_nl) / non_control_char_tab_nl))+
+rule rebal2[%open, %close]
+  !$match[%close] /
+  $match[%open] /
+  "#" [{@$] (
+    "\" @:nl /
+    "\" @:non_control_char_tab_nl /
+    @:non_control_char_tab_nl
+  )+
 end
 
 rule s0
@@ -1071,7 +1458,8 @@ rule h
 end
 
 rule hspace
-  [ \t] / ("\\" @:nl)
+  [ \t] /
+  "\\" @:nl
 end
 
 rule hx
@@ -1079,7 +1467,9 @@ rule hx
 end
 
 rule s0c
-  (s / comment_line / ("\\" @:nl))*
+  s /
+  comment_line /
+  "\\" @:nl*
 end
 
 rule nl

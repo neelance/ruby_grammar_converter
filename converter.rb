@@ -3,44 +3,44 @@ require "benchmark"
 require "jetpeg"
 
 class String
-  def trim_parens
-    if self[0] == "(" and self[-1] == ")"
-      self[1..-2].trim_parens
-    else
+  def indent
+    "  #{gsub "\n", "\n  "}"
+  end
+  
+  def add_parens(without_parens = false)
+    case
+    when without_parens
       self
+    when include?("\n")
+      "(\n#{self.indent}\n)"
+    else
+      "( #{self} )"
     end
   end
 end
 
 class Array
   def seq
-    if self.size == 1
-      self.first
-    else
-      "(#{self.join(' ')})"
-    end
+    Seq.new forms: self
   end
 end
 
-class Call
+class Node
+  attr_reader :data
+  
   def initialize(data)
-    @name = data[:name]
-    @forms = data[:forms]
+    @data = data
+  end
+end
+
+class SimpleNode
+  def initialize(str, form)
+    @str = str
+    @form = form
   end
   
-  def to_s
-    parts = []
-    args = []
-    @forms.each_with_index do |form, i|
-      if form.is_a? Value
-        args << form.value
-      else
-        parts << "arg#{i}:#{form}"
-        args << "%arg#{i}"
-      end
-    end
-    parts << "#{@name}[#{args.join(', ')}]"
-    parts.seq
+  def generate(options = {})
+    @str.sub "<form>", @form.generate(options.merge(without_parens: true))
   end
 end
 
@@ -51,48 +51,137 @@ class Value
     @value = value
   end
   
-  def to_s
-    @value
-  end
-end
-
-class Seq
-  def initialize(data)
-    @forms = data[:forms]
-  end
-  
-  def parts
-    list = @forms[0..-2]
-    if @forms.last.is_a? Make
-      list.concat @forms.last.parts
+  def generate(options = {})
+    case options[:value]
+    when :explicit
+      "@:#{@value}"
+    when :suffix_handling
+      "%value:#{@value}"
     else
-      list << "@:#{@forms.last}"
+      @value
     end
-    list
-  end
-  
-  def to_s
-    parts.seq
   end
 end
 
-class Make
-  def initialize(data)
-    @forms = data[:forms]
-    @cls = make_class_name(data[:name])
-  end
-  
-  def parts
-    list = []
-    @forms.each_with_index do |form, i|
-      list << "p#{i}:#{form}"
+class Call < Node
+  def generate(options = {})
+    parts = []
+    args = []
+    @data[:forms].each_with_index do |form, i|
+      if form.is_a? Value
+        args << form.value
+      else
+        parts << Value.new("%arg#{i}:#{form}")
+        args << "%arg#{i}"
+      end
     end
-    list << "<#{@cls}>"
-    list
+    parts << Value.new("#{@data[:name]}[#{args.join(', ')}]")
+    parts.seq.generate options
+  end
+end
+
+class Seq < Node
+  def initialize(data)
+    super
+    raise if @data[:forms].any? { |f| f.is_a? String }
   end
   
-  def to_s
-    parts.seq
+  def generate(options = {})
+    forms = @data[:forms].compact
+    return "" if forms.empty?
+    return forms.first.generate(options) if forms.size == 1
+    
+    value_index = -1
+    if forms.last.is_a? Make
+      make = forms.pop
+      forms.concat make.parts
+    elsif options[:value]
+      value_index = forms.index { |f| f.is_a? AtCapture } || forms.size - 1
+    end
+
+    strings = []
+    begin
+      forms.each_index { |i|
+        strings << forms[i].generate(options.merge(value: (i == value_index ? :explicit : false), without_parens: false))
+      }
+    rescue IllegalAtCaptureError
+      strings.clear
+      forms.each_index { |i|
+        strings << forms[i].generate(options.merge(value: (i == value_index ? :suffix_handling : false), suffix_handling: true, without_parens: false))
+      }
+    end
+    
+    strings.join(' ').add_parens(options[:without_parens])
+  end
+end
+
+class Until < Node
+  def generate(options = {})
+    "#{data[:repeat].generate(options.merge without_parens: false)}*[#{data[:until_cond].generate(options.merge without_parens: true)}]"
+  end
+end
+
+class Or < Node
+  def generate(options = {})
+    strings = @data[:forms].map{ |f| f.generate(options.merge(without_parens: true)) }
+    simple = @data[:forms].all? { |f| f.is_a?(Value) }
+    strings.join(simple ? " / " : " /\n").add_parens(options[:without_parens])
+  end
+end
+
+class Opt < Node
+  def generate(options = {})
+    if options[:suffix_handling]
+      inner = "#{@data[:forms].seq.generate(value: :explicit, at_value: '%value')} /\n%value"
+      "@:(\n#{inner.indent}\n)"
+    else
+      "#{@data[:forms].seq.generate(options)}?"
+    end
+  end
+end
+
+class Rep < Node
+  def generate(options = {})
+    if options[:suffix_handling]
+      suffix_rule_content = "%value:#{@data[:forms].seq.generate(value: :explicit, at_value: '%inner_value')}\n@:( #{options[:rule_name]}_suffix[%value] / %value )"
+      $additional_rules << "rule #{options[:rule_name]}_suffix[%inner_value]\n#{suffix_rule_content.indent}\nend\n"
+      "@:( #{options[:rule_name]}_suffix[%value] / %value )"
+    else
+      "#{@data[:forms].seq.generate(options)}*"
+    end
+  end
+end
+
+class AtCapture < Node
+  def generate(options = {})
+    raise IllegalAtCaptureError if not options[:value]
+    @data[:form].generate(options)
+  end
+end
+
+class AtValue < Node
+  def generate(options = {})
+    options[:at_value] || "<fixme>"
+  end
+end
+
+class IllegalAtCaptureError < RuntimeError
+end
+
+class Make < Node
+  def parts
+    @parts ||= begin
+      list = []
+      @data[:forms].each_with_index do |form, i|
+        list << SimpleNode.new("p#{i}:<form>", form)
+      end
+      list << Value.new("<#{make_class_name(@data[:name])}>")
+      list
+    end
+  end
+  
+  def generate(options = {})
+    parts.seq.generate(options)
   end
 end
 
@@ -110,6 +199,8 @@ def make_class_name(name)
   cls
 end
 
+$rule_replacements = {}
+
 code = IO.read "ruby.lisp.txt"
 parser = data_pointer = input_address = data = result = nil
 
@@ -122,7 +213,7 @@ Benchmark.bm(17) do |bm|
     parser[:grammar].match "" # compile
   end
   bm.report("parsing:") do
-    data_pointer, input_address = parser.match_rule_raw parser[:grammar], code
+    data_pointer, input_address = parser.match_rule parser[:grammar], code, :output => :pointer
   end
   
   bm.report("loading data:") do
@@ -130,6 +221,7 @@ Benchmark.bm(17) do |bm|
   end
   
   bm.report("realizing data:") do
+    $additional_rules = []
     result = JetPEG.realize_data data
   end
 end
@@ -151,3 +243,5 @@ File.open("ruby_ast_nodes.rb", "w") do |io|
   io.puts "  end"
   io.puts "end"
 end
+
+#parser.mod.dump

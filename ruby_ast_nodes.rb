@@ -66,9 +66,6 @@ module Ruby
     class Blockvar < Node
     end
     
-    class BraceBlock < Node
-    end
-    
     class Break < Node
     end
     
@@ -85,9 +82,6 @@ module Ruby
     end
     
     class Cmp < Node
-    end
-    
-    class Colon2 < Node
     end
     
     class Comment < Node
@@ -124,9 +118,6 @@ module Ruby
     end
     
     class DivAssign < Node
-    end
-    
-    class DoBlock < Node
     end
     
     class End < Node
@@ -277,9 +268,6 @@ module Ruby
     end
     
     class PowAssign < Node
-    end
-    
-    class Progn < Node
     end
     
     class Rangeexc < Node
