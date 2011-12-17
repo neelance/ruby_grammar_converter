@@ -44,7 +44,7 @@ rule variable
 end
 
 rule capture
-  name:[0-9] word_end :form { SimpleNode.new "%#{name}:<form>", form } /
+  name:[0-9] word_end :form <Capture> /
   '@' word_end :form <AtCapture>
 end
 

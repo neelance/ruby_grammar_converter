@@ -72,8 +72,11 @@ class Call < Node
     @data[:forms].each_with_index do |form, i|
       if form.is_a? Value
         args << form.value
+      elsif form.is_a? Capture
+        parts << form
+        args << "%#{form.name}"
       else
-        parts << Value.new("%arg#{i}:#{form}")
+        parts << Value.new("%arg#{i}:#{form.generate}")
         args << "%arg#{i}"
       end
     end
@@ -167,6 +170,16 @@ class Rep1 < Node
     else
       "#{@data[:forms].seq.generate(options)}+"
     end
+  end
+end
+
+class Capture < Node
+  def name
+    @data[:name]
+  end
+  
+  def generate(options = {})
+    "%#{@data[:name]}:#{@data[:form].generate(options.merge(without_parens: false))}"
   end
 end
 
