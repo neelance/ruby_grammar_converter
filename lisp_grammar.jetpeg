@@ -81,7 +81,7 @@ rule rep
 end
 
 rule rep1
-  'rep1' word_end forms:form* { SimpleNode.new "<form>+", forms.seq }
+  'rep1' word_end forms:form* <Rep1>
 end
 
 rule until
@@ -113,7 +113,7 @@ rule yield
 end
 
 rule new_mark_scope
-  'new-mark-scope' word_end forms:form* { SimpleNode.new "$new_mark_scope[<form>]", forms.seq }
+  'new-mark-scope' word_end :form { SimpleNode.new "$new_mark_scope[<form>]", form }
 end
 
 rule mark
@@ -125,7 +125,7 @@ rule is_marked
 end
 
 rule add_mark_scope
-  'add-mark-scope' word_end forms:form* { SimpleNode.new "$add_mark_scope[<form>]", forms.seq }
+  'add-mark-scope' word_end :form { SimpleNode.new "$add_mark_scope[<form>]", form }
 end
 
 rule enter_mode

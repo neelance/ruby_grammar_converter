@@ -96,7 +96,11 @@ rule compstmt
 end
 
 rule stmts
-  <fixme rule>
+  (
+    %1:stmt_postcomment /
+    %1:stmt terms
+  ) ( p0:head:%1 tail:many_stmts @:<Progn> ) /
+  ( @:stmt_postcomment / @:stmt ) opt_terms
 end
 
 rule many_stmts
@@ -183,7 +187,7 @@ rule global_end
 end
 
 rule begin_end_block
-  <fixme rule>
+  s0 "{" s0 $new_mark_scope[@:compstmt] s0 "}"
 end
 
 rule boolean
@@ -581,11 +585,39 @@ rule sends
 end
 
 rule sends1
-  <fixme rule>
+  %value:primary @:sends1_suffix[%value]
+end
+
+rule sends1_suffix[%inner_value]
+  %value:(
+    h0 (
+      ( "." / "::" ) s0c (
+        p0:%inner_value p1:operationl p2:paren_arguments_block? @:<Send> /
+        p0:%inner_value p1:uword p2:paren_arguments_block @:<Send> /
+        p0:%inner_value p1:uword @:<Colon2>
+      ) /
+      p0:%inner_value p1:aref_array @:<Aref>
+    )
+  )
+  @:( sends1_suffix[%value] / %value )
 end
 
 rule sends1_lhs
-  <fixme rule>
+  %value:primary @:sends1_lhs_suffix[%value]
+end
+
+rule sends1_lhs_suffix[%inner_value]
+  %value:(
+    h0 (
+      ( "." / "::" ) s0c (
+        p0:%inner_value p1:operationl_na p2:paren_arguments_block? @:<Send> /
+        p0:%inner_value p1:uword p2:paren_arguments_block @:<Send> /
+        p0:%inner_value p1:uword @:<Colon2>
+      ) /
+      p0:%inner_value p1:aref_array @:<Aref>
+    )
+  )
+  @:( sends1_lhs_suffix[%value] / %value )
 end
 
 rule aref_array
@@ -918,7 +950,7 @@ rule symbol_sv
 end
 
 rule hash_literal
-  <fixme rule>
+  "{" s0c $enter_mode["hash_comma", p0:hash_assocs0 @:<MakeHash>] s0c comma? s0c "}"
 end
 
 rule hash_assocs0
@@ -1047,7 +1079,7 @@ rule toplevel_constant
 end
 
 rule defclass
-  <fixme rule>
+  "class" !wordchar s0 $new_mark_scope[@:defsclass / @:defclass1] s0 "end"
 end
 
 rule defclass1
@@ -1133,11 +1165,11 @@ rule block
 end
 
 rule brace_block
-  <fixme rule>
+  "{" s0c $add_mark_scope[p0:bpformals? p1:compstmt @:<BraceBlock>] s0 "}"
 end
 
 rule do_block
-  <fixme rule>
+  "do" !wordchar s0c $add_mark_scope[p0:bpformals? p1:compstmt @:<DoBlock>] "end" !wordchar
 end
 
 rule bpformals
@@ -1149,7 +1181,14 @@ rule bformals
 end
 
 rule bformal
-  <fixme rule>
+  splat_formal /
+  blockvar /
+  mlhsp /
+  ivar /
+  $mark[%value:lword] @:(
+    ( s0 "=" s0 ( p0:%value p1:$enter_mode["block_formal_default", ldefined] @:<Optarg> ) ) /
+    %value
+  )
 end
 
 rule comma
@@ -1212,8 +1251,8 @@ rule string2
   !"\"" /
   "#" [{@$] /
   "\" [abefnrstvx0123456789cCM] (
-    "\" @:nl /
-    "\" @:non_control_char /
+    "\\" @:nl /
+    "\\" @:non_control_char /
     @:non_control_char_tab_nl
   )+
 end
@@ -1229,7 +1268,7 @@ end
 
 rule sqstring2
   !"'" (
-    "\" @:['\] /
+    "\\" @:['\\] /
     @:non_control_char_tab_nl
   )+
 end
@@ -1246,11 +1285,11 @@ rule string_balanced1
 end
 
 rule string_balanced_any
-  %arg0:#<SimpleNode:0x00000002be86b8> @:string1_balanced[%arg0, %1]
+  %arg0:#<SimpleNode:0x00000003df9708> @:string1_balanced[%arg0, %1]
 end
 
 rule string_balanced_spc
-  %arg0:#<SimpleNode:0x00000002bcfb18> @:string1_balanced[%arg0, %1]
+  %arg0:#<SimpleNode:0x00000003de06b8> @:string1_balanced[%arg0, %1]
 end
 
 rule string1_balanced[%open, %close]
@@ -1272,8 +1311,8 @@ rule string2_balanced[%open, %close]
   "#" [{@$] /
   "\" [abefnrstvx0123456789cCM] /
   $in_mode["words"] s (
-    "\" %1:nl $in_mode["words"] @:%1? /
-    "\" ( @:non_control_char / @:$match[%close] ) /
+    "\\" %1:nl $in_mode["words"] @:%1? /
+    "\\" ( @:non_control_char / @:$match[%close] ) /
     @:non_control_char_tab_nl
   )+
 end
@@ -1291,7 +1330,7 @@ rule sqstring_balanced
 end
 
 rule bsqstring_any
-  %arg0:#<SimpleNode:0x00000002ac2b58> @:sqstring1_balanced[%arg0, %1]
+  %arg0:#<SimpleNode:0x00000003cd3e00> @:sqstring1_balanced[%arg0, %1]
 end
 
 rule sqstring1_balanced[%open, %close]
@@ -1309,7 +1348,7 @@ rule sqstring2_balanced[%open, %close]
   !$match[%close] /
   $match[%open] /
   $in_mode["words"] s (
-    "\" ( @:"\" / @:$match[%close] / @:" " / @:nl ) /
+    "\\" ( @:"\\" / @:$match[%close] / @:" " / @:nl ) /
     @:non_control_char_tab_nl
   )+
 end
@@ -1359,8 +1398,8 @@ rule dq_here_doc_2[%limiter]
   !nl $in_mode["here_doc_space"] hx? $match[%limiter] nl /
   "#" [{@$] /
   "\" [abefnrstvx0123456789cCM] (
-    "\" @:nl /
-    "\" @:[#\"\] /
+    "\\" @:nl /
+    "\\" @:[#\"\\] /
     @:non_control_char_tab_nl
   )+
 end
@@ -1394,11 +1433,11 @@ end
 rule re2
   !"/" /
   "#" [{@$] (
-    "\" (
+    "\\" (
       @:nl /
       @:"/" /
-      "\" @:"\\" /
-      "#" @:"\#"
+      "\\" @:"\\\\" /
+      "#" @:"\\#"
     ) /
     @:non_control_char_tab_nl
   )+
@@ -1417,7 +1456,7 @@ rule rebal0
 end
 
 rule rebal_any
-  %arg0:#<SimpleNode:0x00000002b9d898> @:rebal1[%arg0, %1]
+  %arg0:#<SimpleNode:0x00000003db9540> @:rebal1[%arg0, %1]
 end
 
 rule rebal1[%open, %close]
@@ -1435,8 +1474,8 @@ rule rebal2[%open, %close]
   !$match[%close] /
   $match[%open] /
   "#" [{@$] (
-    "\" @:nl /
-    "\" @:non_control_char_tab_nl /
+    "\\" @:nl /
+    "\\" @:non_control_char_tab_nl /
     @:non_control_char_tab_nl
   )+
 end

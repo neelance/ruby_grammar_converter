@@ -34,6 +34,8 @@ class Node
 end
 
 class SimpleNode
+  attr_reader :form
+  
   def initialize(str, form)
     @str = str
     @form = form
@@ -86,6 +88,10 @@ class Seq < Node
     raise if @data[:forms].any? { |f| f.is_a? String }
   end
   
+  def follow_simple_nodes(node)
+    node.is_a?(SimpleNode) ? follow_simple_nodes(node.form) : node
+  end
+  
   def generate(options = {})
     forms = @data[:forms].compact
     return "" if forms.empty?
@@ -96,7 +102,7 @@ class Seq < Node
       make = forms.pop
       forms.concat make.parts
     elsif options[:value]
-      value_index = forms.index { |f| f.is_a? AtCapture } || forms.size - 1
+      value_index = forms.index { |f| follow_simple_nodes(f).is_a? AtCapture } || forms.size - 1
     end
 
     strings = []
@@ -148,6 +154,18 @@ class Rep < Node
       "@:( #{options[:rule_name]}_suffix[%value] / %value )"
     else
       "#{@data[:forms].seq.generate(options)}*"
+    end
+  end
+end
+
+class Rep1 < Node
+  def generate(options = {})
+    if options[:suffix_handling]
+      suffix_rule_content = "%value:#{@data[:forms].seq.generate(value: :explicit, at_value: '%inner_value')}\n@:( #{options[:rule_name]}_suffix[%value] / %value )"
+      $additional_rules << "rule #{options[:rule_name]}_suffix[%inner_value]\n#{suffix_rule_content.indent}\nend\n"
+      "@:#{options[:rule_name]}_suffix[%value]"
+    else
+      "#{@data[:forms].seq.generate(options)}+"
     end
   end
 end

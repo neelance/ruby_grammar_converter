@@ -58,9 +58,9 @@ compstmt
     (seq opt-terms (@ (opt stmts)) opt-terms)
 
 stmts
-    (or (seq (or (@ stmt-postcomment)
-                 (seq (@ stmt) terms))
-             (@ (make progn (make cons @ many-stmts))))
+    (or (seq (or (1 stmt-postcomment)
+                 (seq (1 stmt) terms))
+             (@ (make progn (make cons 1 many-stmts))))
         (seq (@ (or stmt-postcomment stmt)) opt-terms))
 
 many-stmts
