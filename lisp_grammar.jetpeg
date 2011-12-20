@@ -145,7 +145,7 @@ rule only_in_mode
 end
 
 rule error
-  'error' word_end :form msg:string_literal { SimpleNode.new "( <form> $error[\"#{msg}\"] )?", form }
+  'error' word_end :form msg:string_literal { SimpleNode.new "( !<form> / $error[\"#{msg}\"] )", form, true }
 end
 
 rule return

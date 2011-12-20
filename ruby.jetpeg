@@ -161,7 +161,7 @@ rule valias_target
   s0 (
     @:special_variables /
     @:back_ref /
-    ( @:nth_ref $error["can't make alias for the number variables"] )?
+    ( !@:nth_ref / $error["can't make alias for the number variables"] )
   )
 end
 
@@ -864,7 +864,7 @@ rule char_literal
   "?" (
     "\\" (
       @:backslash_char /
-      ( (  )? $error["bad backslash"] )?
+      ( !(  )? / $error["bad backslash"] )
     ) /
     p0:[!-\xff] @:<Char>
   )
@@ -1087,7 +1087,7 @@ rule cpath
 end
 
 rule cname
-  ( lword $error["class/module name must be constant"] )? @:uword
+  ( !lword / $error["class/module name must be constant"] ) @:uword
 end
 
 rule superclass
