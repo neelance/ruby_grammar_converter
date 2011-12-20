@@ -5,7 +5,7 @@ end
 rule rdef
   ( :name / param_open :name params:name* param_close ) :form {
     content = begin
-      form.generate rule_name: name, value: :implicit, without_parens: true
+      form.generate rule_name: name, value: :implicit
     rescue IllegalAtCaptureError
       "<fixme rule>"
     end
@@ -99,7 +99,7 @@ end
 rule make
   'make' word_end (
     'nil' { Value.new "()" } /
-    'cons' word_end head:form tail:form { Seq.new forms: [SimpleNode.new("head:<form>", head), SimpleNode.new("tail:<form>", tail)] } /
+    'cons' word_end head:form tail:form { Seq.new forms: [SimpleNode.new("head:<form>", head, true), SimpleNode.new("tail:<form>", tail, true)] } /
     :name forms:form* <Make>
   )
 end

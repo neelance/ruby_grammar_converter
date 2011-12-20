@@ -7,9 +7,14 @@ class String
     "  #{gsub "\n", "\n  "}"
   end
   
-  def add_parens(without_parens = false)
+  def no_parens_needed
+    @no_parens_needed = true
+    self
+  end
+  
+  def add_parens
     case
-    when without_parens
+    when @no_parens_needed
       self
     when include?("\n")
       "(\n#{self.indent}\n)"
@@ -36,13 +41,16 @@ end
 class SimpleNode
   attr_reader :form
   
-  def initialize(str, form)
+  def initialize(str, form, add_parens = false)
     @str = str
     @form = form
+    @add_parens = add_parens
   end
   
   def generate(options = {})
-    @str.sub "<form>", @form.generate(options.merge(without_parens: true))
+    replacement = @form.generate options
+    replacement = replacement.add_parens if @add_parens
+    @str.sub("<form>", replacement).no_parens_needed
   end
 end
 
@@ -61,7 +69,7 @@ class Value
       "%value:#{@value}"
     else
       @value
-    end
+    end.no_parens_needed
   end
 end
 
@@ -111,40 +119,40 @@ class Seq < Node
     strings = []
     begin
       forms.each_index { |i|
-        strings << forms[i].generate(options.merge(value: (i == value_index ? :explicit : false), without_parens: false))
+        strings << forms[i].generate(options.merge(value: (i == value_index ? :explicit : false))).add_parens
       }
     rescue IllegalAtCaptureError
       strings.clear
       forms.each_index { |i|
-        strings << forms[i].generate(options.merge(value: (i == value_index ? :suffix_handling : false), suffix_handling: true, without_parens: false))
+        strings << forms[i].generate(options.merge(value: (i == value_index ? :suffix_handling : false), suffix_handling: true)).add_parens
       }
     end
     
-    strings.join(' ').add_parens(options[:without_parens])
+    strings.join ' '
   end
 end
 
 class Until < Node
   def generate(options = {})
-    "#{data[:repeat].generate(options.merge without_parens: false)}*[#{data[:until_cond].generate(options.merge without_parens: true)}]"
+    "#{data[:repeat].generate(options)}*[#{data[:until_cond].generate(options)}]"
   end
 end
 
 class Or < Node
   def generate(options = {})
-    strings = @data[:forms].map{ |f| f.generate(options.merge(without_parens: true)) }
+    strings = @data[:forms].map{ |f| f.generate(options) }
     simple = @data[:forms].all? { |f| f.is_a?(Value) }
-    strings.join(simple ? " / " : " /\n").add_parens(options[:without_parens])
+    strings.join(simple ? " / " : " /\n")
   end
 end
 
 class Opt < Node
   def generate(options = {})
     if options[:suffix_handling]
-      inner = "#{@data[:forms].seq.generate(value: :explicit, at_value: '%value')} /\n%value"
-      "@:(\n#{inner.indent}\n)"
+      inner = "#{@data[:forms].seq.generate(value: :explicit, at_value: '%value').add_parens} /\n%value"
+      "@:(\n#{inner.indent}\n)".no_parens_needed
     else
-      "#{@data[:forms].seq.generate(options)}?"
+      "#{@data[:forms].seq.generate(options).add_parens}?".no_parens_needed
     end
   end
 end
@@ -152,11 +160,11 @@ end
 class Rep < Node
   def generate(options = {})
     if options[:suffix_handling]
-      suffix_rule_content = "%value:#{@data[:forms].seq.generate(value: :explicit, at_value: '%inner_value')}\n@:( #{options[:rule_name]}_suffix[%value] / %value )"
+      suffix_rule_content = "%value:#{@data[:forms].seq.generate(value: :explicit, at_value: '%inner_value').add_parens} @:( #{options[:rule_name]}_suffix[%value] / %value )"
       $additional_rules << "rule #{options[:rule_name]}_suffix[%inner_value]\n#{suffix_rule_content.indent}\nend\n"
-      "@:( #{options[:rule_name]}_suffix[%value] / %value )"
+      "@:( #{options[:rule_name]}_suffix[%value] / %value )".no_parens_needed
     else
-      "#{@data[:forms].seq.generate(options)}*"
+      "#{@data[:forms].seq.generate(options).add_parens}*".no_parens_needed
     end
   end
 end
@@ -164,11 +172,11 @@ end
 class Rep1 < Node
   def generate(options = {})
     if options[:suffix_handling]
-      suffix_rule_content = "%value:#{@data[:forms].seq.generate(value: :explicit, at_value: '%inner_value')}\n@:( #{options[:rule_name]}_suffix[%value] / %value )"
+      suffix_rule_content = "%value:#{@data[:forms].seq.generate(value: :explicit, at_value: '%inner_value').add_parens} @:( #{options[:rule_name]}_suffix[%value] / %value )"
       $additional_rules << "rule #{options[:rule_name]}_suffix[%inner_value]\n#{suffix_rule_content.indent}\nend\n"
-      "@:#{options[:rule_name]}_suffix[%value]"
+      "@:#{options[:rule_name]}_suffix[%value]".no_parens_needed
     else
-      "#{@data[:forms].seq.generate(options)}+"
+      "#{@data[:forms].seq.generate(options).add_parens}+".no_parens_needed
     end
   end
 end
@@ -179,7 +187,7 @@ class Capture < Node
   end
   
   def generate(options = {})
-    "%#{@data[:name]}:#{@data[:form].generate(options.merge(without_parens: false))}"
+    "%#{@data[:name]}:#{@data[:form].generate(options).add_parens}".no_parens_needed
   end
 end
 

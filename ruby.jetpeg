@@ -80,11 +80,11 @@ rule bodystmt
 end
 
 rule rescues
-  head:p0:"rescue" !wordchar h0 exceptions? p1:h0 "=>" s0 lhs1? p2:then compstmt <Resc> tail:@:rescues?
+  head:( p0:"rescue" !wordchar h0 exceptions? p1:( h0 "=>" s0 lhs1 )? p2:then compstmt <Resc> ) tail:@:rescues?
 end
 
 rule exceptions
-  head:ldefined tail:comma @:exceptions?
+  head:ldefined tail:( comma @:exceptions )?
 end
 
 rule ensure
@@ -138,8 +138,7 @@ rule stmt0_suffix[%inner_value]
       "until" !wordchar s0c p0:%inner_value p1:boolean <Runtil> /
       "rescue" !wordchar s0c p0:%inner_value p1:boolean <Rescue>
     )
-  )
-  @:( stmt0_suffix[%value] / %value )
+  ) @:( stmt0_suffix[%value] / %value )
 end
 
 rule stmt1
@@ -171,7 +170,7 @@ rule undef
 end
 
 rule undef_list
-  head:undef_part tail:comma @:undef_list?
+  head:undef_part tail:( comma @:undef_list )?
 end
 
 rule undef_part
@@ -198,8 +197,7 @@ rule boolean_suffix[%inner_value]
   %value:(
     h0 "and" !wordchar s0c p0:%inner_value p1:not <And> /
     h0 "or" !wordchar s0c p0:%inner_value p1:not <Or>
-  )
-  @:( boolean_suffix[%value] / %value )
+  ) @:( boolean_suffix[%value] / %value )
 end
 
 rule not
@@ -229,8 +227,8 @@ rule command2
     h0 %1:(
       ( "." / "::" ) s0 p0:%1 p1:operation2 p2:paren_arguments_block? <Send> /
       p0:%1 p1:array @:<Aref>
-    )
-  )*[h0 ( "." / "::" ) s0 %2:operation2_na h ( p0:%1 p1:%2 p2:cmdargs_block @:<Cmd> )]
+    )*[h0 ( "." / "::" ) s0 %2:operation2_na h ( p0:%1 p1:%2 p2:cmdargs_block @:<Cmd> )]
+  )
 end
 
 rule yieldc
@@ -267,11 +265,11 @@ rule cmdargs_opt_block
 end
 
 rule cmdargs
-  $enter_mode["cmdargs", head:cmdarg_first tail:comma @:cmdargs1?]
+  $enter_mode["cmdargs", head:cmdarg_first tail:( comma @:cmdargs1 )?]
 end
 
 rule cmdargs1
-  head:cmdarg tail:comma @:cmdargs1?
+  head:cmdarg tail:( comma @:cmdargs1 )?
 end
 
 rule cmdarg_first
@@ -283,11 +281,11 @@ rule cmdarg
 end
 
 rule cmd2args
-  $enter_mode["cmdargs", head:cmd2arg_first tail:comma @:cmd2args1?]
+  $enter_mode["cmdargs", head:cmd2arg_first tail:( comma @:cmd2args1 )?]
 end
 
 rule cmd2args1
-  head:arg tail:comma @:cmd2args1?
+  head:arg tail:( comma @:cmd2args1 )?
 end
 
 rule cmd2arg_first
@@ -321,12 +319,12 @@ rule masgn
 end
 
 rule mlhs1
-  head:mlhsp / mlhsx_splat tail:comma @:mlhs?? /
-  head:mlhsx tail:comma @:mlhs?
+  head:( mlhsp / mlhsx_splat ) tail:( comma @:mlhs? )? /
+  head:mlhsx tail:( comma @:mlhs? )
 end
 
 rule mlhs
-  head:mlhsp / mlhsx tail:comma @:mlhs??
+  head:( mlhsp / mlhsx ) tail:( comma @:mlhs? )?
 end
 
 rule mlhsp
@@ -345,11 +343,11 @@ rule mlhsx_splat
 end
 
 rule mrhs1
-  head:mrhsx tail:comma @:mrhs
+  head:mrhsx tail:( comma @:mrhs )
 end
 
 rule mrhs
-  head:mrhsx tail:comma @:mrhs?
+  head:mrhsx tail:( comma @:mrhs )?
 end
 
 rule mrhsx
@@ -423,12 +421,12 @@ rule asgvalue
 end
 
 rule asgargs
-  p0:head:arg tail:comma asgargs1 @:<MakeArray> /
+  p0:head:arg tail:( comma asgargs1 ) @:<MakeArray> /
   defined
 end
 
 rule asgargs1
-  head:arg tail:h0 comma @:asgargs1?
+  head:arg tail:( h0 comma @:asgargs1 )?
 end
 
 rule rescue_mod
@@ -460,8 +458,7 @@ rule orop
 end
 
 rule orop_suffix[%inner_value]
-  %value:( "||" s0c p0:%inner_value p1:rop / andop <Orop> )
-  @:( orop_suffix[%value] / %value )
+  %value:( "||" s0c p0:%inner_value p1:rop / andop <Orop> ) @:( orop_suffix[%value] / %value )
 end
 
 rule andop
@@ -469,8 +466,7 @@ rule andop
 end
 
 rule andop_suffix[%inner_value]
-  %value:( "&&" s0c p0:%inner_value p1:rop / compare <Andop> )
-  @:( andop_suffix[%value] / %value )
+  %value:( "&&" s0c p0:%inner_value p1:rop / compare <Andop> ) @:( andop_suffix[%value] / %value )
 end
 
 rule compare
@@ -497,8 +493,7 @@ rule relop_suffix[%inner_value]
     "<" s0c p0:%inner_value p1:rop / relop <Lt> /
     ">=" s0c p0:%inner_value p1:rop / relop <Gte> /
     ">" s0c p0:%inner_value p1:rop / relop <Gt>
-  )
-  @:( relop_suffix[%value] / %value )
+  ) @:( relop_suffix[%value] / %value )
 end
 
 rule bitor
@@ -509,8 +504,7 @@ rule bitor_suffix[%inner_value]
   %value:(
     !$in_mode["block_formal_default"] "|" s0c p0:%inner_value p1:rop / bitand <Bitor> /
     "^" s0c p0:%inner_value p1:rop / bitand <Bitxor>
-  )
-  @:( bitor_suffix[%value] / %value )
+  ) @:( bitor_suffix[%value] / %value )
 end
 
 rule bitand
@@ -518,8 +512,7 @@ rule bitand
 end
 
 rule bitand_suffix[%inner_value]
-  %value:( "&" s0c p0:%inner_value p1:rop / shift <Bitand> )
-  @:( bitand_suffix[%value] / %value )
+  %value:( "&" s0c p0:%inner_value p1:rop / shift <Bitand> ) @:( bitand_suffix[%value] / %value )
 end
 
 rule shift
@@ -530,8 +523,7 @@ rule shift_suffix[%inner_value]
   %value:(
     "<<" s0c p0:%inner_value p1:rop / add <Shl> /
     ">>" s0c p0:%inner_value p1:rop / add <Shr>
-  )
-  @:( shift_suffix[%value] / %value )
+  ) @:( shift_suffix[%value] / %value )
 end
 
 rule add
@@ -542,8 +534,7 @@ rule add_suffix[%inner_value]
   %value:(
     "+" s0c p0:%inner_value p1:rop / mul <Add> /
     "-" s0c p0:%inner_value p1:rop / mul <Sub>
-  )
-  @:( add_suffix[%value] / %value )
+  ) @:( add_suffix[%value] / %value )
 end
 
 rule mul
@@ -555,8 +546,7 @@ rule mul_suffix[%inner_value]
     "*" s0c p0:%inner_value p1:rop / negated <Mul> /
     "/" s0c p0:%inner_value p1:rop / negated <Div> /
     "%" s0c p0:%inner_value p1:rop / negated <Rem>
-  )
-  @:( mul_suffix[%value] / %value )
+  ) @:( mul_suffix[%value] / %value )
 end
 
 rule uop_space
@@ -600,8 +590,7 @@ rule sends1_suffix[%inner_value]
       ) /
       p0:%inner_value p1:aref_array @:<Aref>
     )
-  )
-  @:( sends1_suffix[%value] / %value )
+  ) @:( sends1_suffix[%value] / %value )
 end
 
 rule sends1_lhs
@@ -618,8 +607,7 @@ rule sends1_lhs_suffix[%inner_value]
       ) /
       p0:%inner_value p1:aref_array @:<Aref>
     )
-  )
-  @:( sends1_lhs_suffix[%value] / %value )
+  ) @:( sends1_lhs_suffix[%value] / %value )
 end
 
 rule aref_array
@@ -650,12 +638,12 @@ end
 rule arguments
   s0c (
     head:commandx tail:@:() /
-    head:arg tail:@:opt_comma_arguments?
+    ( head:arg tail:@:opt_comma_arguments )?
   ) s0c
 end
 
 rule opt_comma_arguments
-  s0c comma s0c ( head:arg tail:@:opt_comma_arguments )?
+  ( s0c comma s0c ( head:arg tail:@:opt_comma_arguments ) )?
 end
 
 rule primary
@@ -780,15 +768,15 @@ rule do
 end
 
 rule case
-  "case" !wordchar s0c ( p0:boolean? p1:s0c when p2:s0 else? @:<Case> ) s0 "end" !wordchar
+  "case" !wordchar s0c ( p0:boolean? p1:s0c when p2:( s0 else )? @:<Case> ) s0 "end" !wordchar
 end
 
 rule when
-  opt_terms dropped_comment opt_terms "when" !wordchar s0 %1:arguments_splat then ( head:p0:%1 p1:compstmt <When> tail:@:when? )
+  opt_terms dropped_comment opt_terms "when" !wordchar s0 %1:arguments_splat then ( head:( p0:%1 p1:compstmt <When> ) tail:@:when? )
 end
 
 rule arguments_splat
-  head:splat_arg tail:s0 comma @:arguments_splat??
+  head:splat_arg tail:( s0 comma @:arguments_splat? )?
 end
 
 rule self_send
@@ -876,7 +864,7 @@ rule char_literal
   "?" (
     "\\" (
       @:backslash_char /
-      ( ? $error["bad backslash"] )?
+      ( (  )? $error["bad backslash"] )?
     ) /
     p0:[!-\xff] @:<Char>
   )
@@ -960,11 +948,13 @@ rule hash_assocs0
 end
 
 rule hash_assocs
-  head:%1:word s0c ":" !":" s0c p0:p0:%1 <Symbol> p1:ldefined <Assoc> /
-  %1:ldefined s0c (
-    "=>" /
-    $in_mode["hash_comma"] ","
-  ) s0c p0:%1 p1:ldefined <Assoc> tail:s0c comma s0c @:hash_assocs?
+  head:(
+    %1:word s0c ":" !":" s0c p0:p0:%1 <Symbol> p1:ldefined <Assoc> /
+    %1:ldefined s0c (
+      "=>" /
+      $in_mode["hash_comma"] ","
+    ) s0c p0:%1 p1:ldefined <Assoc>
+  ) tail:( s0c comma s0c @:hash_assocs )?
 end
 
 rule variable
@@ -1136,7 +1126,7 @@ rule defformals
 end
 
 rule mformals
-  head:mformal tail:comma @:mformals?
+  head:mformal tail:( comma @:mformals )?
 end
 
 rule mformal
@@ -1179,7 +1169,7 @@ rule bpformals
 end
 
 rule bformals
-  head:bformal tail:s0 comma @:bformals?
+  head:bformal tail:( s0 comma @:bformals )?
 end
 
 rule bformal
@@ -1198,7 +1188,7 @@ rule comma
 end
 
 rule dropped_comment
-  h0 @:comment_line?
+  ( h0 @:comment_line )?
 end
 
 rule unassociated_comment
@@ -1207,7 +1197,7 @@ rule unassociated_comment
 end
 
 rule comment_lines
-  head:comment_line tail:nl h0 @:comment_lines?
+  head:comment_line tail:( nl h0 @:comment_lines )?
 end
 
 rule comment_line
@@ -1219,7 +1209,7 @@ rule comment_char
 end
 
 rule begin_end_comment
-  "=begin" h0 ( p0:!nl "=end" ( [ -~] / "\t" / nl )* @:<BeginEndComment> ) nl "=end"
+  "=begin" h0 ( p0:( !nl "=end" ( [ -~] / "\t" / nl ) )* @:<BeginEndComment> ) nl "=end"
 end
 
 rule string_regexp_words
@@ -1244,18 +1234,22 @@ end
 
 rule string1
   "\"" ( h0 "\"" @:string1 )? /
-  head:string2 /
-  "\" backslash_char /
-  string_expr tail:@:string1
+  head:(
+    string2 /
+    "\" backslash_char /
+    string_expr
+  ) tail:@:string1
 end
 
 rule string2
-  !"\"" /
-  "#" [{@$] /
-  "\" [abefnrstvx0123456789cCM] (
-    "\\" @:nl /
-    "\\" @:non_control_char /
-    @:non_control_char_tab_nl
+  (
+    !"\"" /
+    "#" [{@$] /
+    "\" [abefnrstvx0123456789cCM] (
+      "\\" @:nl /
+      "\\" @:non_control_char /
+      @:non_control_char_tab_nl
+    )
   )+
 end
 
@@ -1269,9 +1263,11 @@ rule sqstring1
 end
 
 rule sqstring2
-  !"'" (
-    "\\" @:['\\] /
-    @:non_control_char_tab_nl
+  (
+    !"'" (
+      "\\" @:['\\] /
+      @:non_control_char_tab_nl
+    )
   )+
 end
 
@@ -1299,11 +1295,13 @@ end
 
 rule string1_balanced[%open, %close]
   $match[%close] @:() /
-  head:string2_balanced[%open, %close] /
-  "\" backslash_char /
-  $in_mode["words"] s <Wordsep> /
-  string_expr /
-  string1_balanced_sub[%open, %close] tail:@:string1_balanced[%open, %close]
+  head:(
+    string2_balanced[%open, %close] /
+    "\" backslash_char /
+    $in_mode["words"] s <Wordsep> /
+    string_expr /
+    string1_balanced_sub[%open, %close]
+  ) tail:@:string1_balanced[%open, %close]
 end
 
 rule string1_balanced_sub[%open, %close]
@@ -1311,14 +1309,16 @@ rule string1_balanced_sub[%open, %close]
 end
 
 rule string2_balanced[%open, %close]
-  !$match[%close] /
-  $match[%open] /
-  "#" [{@$] /
-  "\" [abefnrstvx0123456789cCM] /
-  $in_mode["words"] s (
-    "\\" %1:nl $in_mode["words"] @:%1? /
-    "\\" ( @:non_control_char / @:$match[%close] ) /
-    @:non_control_char_tab_nl
+  (
+    !$match[%close] /
+    $match[%open] /
+    "#" [{@$] /
+    "\" [abefnrstvx0123456789cCM] /
+    $in_mode["words"] s (
+      "\\" %1:nl $in_mode["words"] @:%1? /
+      "\\" ( @:non_control_char / @:$match[%close] ) /
+      @:non_control_char_tab_nl
+    )
   )+
 end
 
@@ -1340,9 +1340,11 @@ end
 
 rule sqstring1_balanced[%open, %close]
   $match[%close] @:() /
-  head:sqstring2_balanced[%open, %close] /
-  $in_mode["words"] s <Wordsep> /
-  sqstring1_balanced_sub[%open, %close] tail:@:sqstring1_balanced[%open, %close]
+  head:(
+    sqstring2_balanced[%open, %close] /
+    $in_mode["words"] s <Wordsep> /
+    sqstring1_balanced_sub[%open, %close]
+  ) tail:@:sqstring1_balanced[%open, %close]
 end
 
 rule sqstring1_balanced_sub[%open, %close]
@@ -1350,11 +1352,13 @@ rule sqstring1_balanced_sub[%open, %close]
 end
 
 rule sqstring2_balanced[%open, %close]
-  !$match[%close] /
-  $match[%open] /
-  $in_mode["words"] s (
-    "\\" ( @:"\\" / @:$match[%close] / @:" " / @:nl ) /
-    @:non_control_char_tab_nl
+  (
+    !$match[%close] /
+    $match[%open] /
+    $in_mode["words"] s (
+      "\\" ( @:"\\" / @:$match[%close] / @:" " / @:nl ) /
+      @:non_control_char_tab_nl
+    )
   )+
 end
 
@@ -1385,7 +1389,7 @@ rule dq_here_doc
 end
 
 rule dq_here_doc_limiter
-  !"\"" @:non_control_char_tab_nl+
+  ( !"\"" @:non_control_char_tab_nl )+
 end
 
 rule here_doc_limiter
@@ -1394,18 +1398,22 @@ end
 
 rule dq_here_doc_1[%limiter]
   nl $in_mode["here_doc_space"] hx? $match[%limiter] nl @:() /
-  head:dq_here_doc_2[%limiter] /
-  "\" backslash_char /
-  string_expr tail:@:dq_here_doc_1[%limiter]
+  head:(
+    dq_here_doc_2[%limiter] /
+    "\" backslash_char /
+    string_expr
+  ) tail:@:dq_here_doc_1[%limiter]
 end
 
 rule dq_here_doc_2[%limiter]
-  !nl $in_mode["here_doc_space"] hx? $match[%limiter] nl /
-  "#" [{@$] /
-  "\" [abefnrstvx0123456789cCM] (
-    "\\" @:nl /
-    "\\" @:[#\"\\] /
-    @:non_control_char_tab_nl
+  (
+    !nl $in_mode["here_doc_space"] hx? $match[%limiter] nl /
+    "#" [{@$] /
+    "\" [abefnrstvx0123456789cCM] (
+      "\\" @:nl /
+      "\\" @:[#\"\\] /
+      @:non_control_char_tab_nl
+    )
   )+
 end
 
@@ -1414,7 +1422,7 @@ rule sq_here_doc
 end
 
 rule sq_here_doc_limiter
-  !"'" @:non_control_char_tab_nl+
+  ( !"'" @:non_control_char_tab_nl )+
 end
 
 rule re
@@ -1432,19 +1440,21 @@ end
 
 rule re1
   "/" @:() /
-  head:re2 / string_expr tail:@:re1
+  head:( re2 / string_expr ) tail:@:re1
 end
 
 rule re2
-  !"/" /
-  "#" [{@$] (
-    "\\" (
-      @:nl /
-      @:"/" /
-      "\\" @:"\\\\" /
-      "#" @:"\\#"
-    ) /
-    @:non_control_char_tab_nl
+  (
+    !"/" /
+    "#" [{@$] (
+      "\\" (
+        @:nl /
+        @:"/" /
+        "\\" @:"\\\\" /
+        "#" @:"\\#"
+      ) /
+      @:non_control_char_tab_nl
+    )
   )+
 end
 
@@ -1466,9 +1476,11 @@ end
 
 rule rebal1[%open, %close]
   $match[%close] @:() /
-  head:rebal2[%open, %close] /
-  string_expr /
-  rebal1_sub[%open, %close] tail:@:rebal1[%open, %close]
+  head:(
+    rebal2[%open, %close] /
+    string_expr /
+    rebal1_sub[%open, %close]
+  ) tail:@:rebal1[%open, %close]
 end
 
 rule rebal1_sub[%open, %close]
@@ -1476,12 +1488,14 @@ rule rebal1_sub[%open, %close]
 end
 
 rule rebal2[%open, %close]
-  !$match[%close] /
-  $match[%open] /
-  "#" [{@$] (
-    "\\" @:nl /
-    "\\" @:non_control_char_tab_nl /
-    @:non_control_char_tab_nl
+  (
+    !$match[%close] /
+    $match[%open] /
+    "#" [{@$] (
+      "\\" @:nl /
+      "\\" @:non_control_char_tab_nl /
+      @:non_control_char_tab_nl
+    )
   )+
 end
 
@@ -1511,9 +1525,11 @@ rule hx
 end
 
 rule s0c
-  s /
-  comment_line /
-  "\\" @:nl*
+  (
+    s /
+    comment_line /
+    "\\" @:nl
+  )*
 end
 
 rule nl
