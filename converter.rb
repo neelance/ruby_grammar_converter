@@ -256,7 +256,7 @@ Benchmark.bm(17) do |bm|
   end
   
   bm.report("loading data:") do
-    data = parser[:grammar].rule_label_type.load data_pointer, code, input_address
+    data = parser[:grammar].rule_return_type.load data_pointer, code, input_address
   end
   
   bm.report("realizing data:") do
