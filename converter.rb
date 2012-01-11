@@ -248,7 +248,6 @@ Benchmark.bm(17) do |bm|
     parser = JetPEG.load File.join(File.dirname(__FILE__), "lisp_grammar.jetpeg")
   end
   bm.report("compiling:") do
-    parser.optimize = false
     parser[:grammar].match "" # compile
   end
   bm.report("parsing:") do
