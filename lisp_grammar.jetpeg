@@ -1,17 +1,17 @@
 rule grammar
-  ws rules:rdef* { rules.flatten.join("\n") }
+  ws rules:rdef* { @rules.flatten.join("\n") }
 end
 
 rule rdef
   ( :name / param_open :name params:name* param_close ) :form {
     content = begin
-      form.generate rule_name: name, value: :implicit
+      @form.generate rule_name: @name, value: :implicit
     rescue IllegalAtCaptureError
       "<fixme rule>"
     end
     rules = [
-      $rule_replacements[name] ||
-      "rule #{name}#{params.empty? ? "" : "[#{params.map{ |p| "%#{p}" }.join(', ')}]"}\n#{content.indent}\nend\n"
+      $rule_replacements[@name] ||
+      "rule #{@name}#{@params ? "[#{@params.map{ |p| "%#{p}" }.join(', ')}]" : ""}\n#{content.indent}\nend\n"
     ]
     rules.concat $additional_rules
     $additional_rules.clear
@@ -31,14 +31,14 @@ rule form
     error / return / again / location / postpone_rest_of_line /
     capture
   ) param_close /
-  str:string_literal { Value.new "\"#{str}\"" } /
+  str:string_literal { Value.new "\"#{@str}\"" } /
   variable /
-  :name { Value.new name }
+  :name { Value.new @name }
 end
 
 rule variable
   (
-    name:[0-9] { Value.new "%#{name}" } /
+    name:[0-9] { Value.new "%#{@name}" } /
     '@' <AtValue>
   ) word_end ws
 end
@@ -53,11 +53,11 @@ rule string_literal
 end
 
 rule range
-  'range' word_end b:char e:char { Value.new "[#{b}-#{e}]" }
+  'range' word_end b:char e:char { Value.new "[#{@b}-#{@e}]" }
 end
 
 rule one_of
-  'one-of' word_end chars:string_literal { Value.new "[#{chars}]" }
+  'one-of' word_end chars:string_literal { Value.new "[#{@chars}]" }
 end
 
 rule seq
@@ -73,7 +73,7 @@ rule opt
 end
 
 rule except
-  'except' word_end forms:form* { SimpleNode.new "!<form>", forms.seq }
+  'except' word_end forms:form* { SimpleNode.new "!<form>", @forms.seq }
 end
 
 rule rep
@@ -93,71 +93,71 @@ rule call
 end
 
 rule arg
-  'arg' word_end :name { Value.new "%#{name}" }
+  'arg' word_end :name { Value.new "%#{@name}" }
 end
 
 rule make
   'make' word_end (
     'nil' { Value.new "()" } /
-    'cons' word_end head:form tail:form { Seq.new forms: [SimpleNode.new("head:<form>", head, true), SimpleNode.new("tail:<form>", tail, true)] } /
+    'cons' word_end head:form tail:form { Seq.new forms: [SimpleNode.new("head:<form>", @head, true), SimpleNode.new("tail:<form>", @tail, true)] } /
     :name forms:form* <Make>
   )
 end
 
 rule string
-  'string' word_end forms:form* { forms.seq }
+  'string' word_end forms:form* { @forms.seq }
 end
 
 rule yield
-  'yield' word_end :form { form }
+  'yield' word_end :form { @form }
 end
 
 rule new_mark_scope
-  'new-mark-scope' word_end :form { SimpleNode.new "$new_mark_scope[<form>]", form }
+  'new-mark-scope' word_end :form { SimpleNode.new "$new_mark_scope[<form>]", @form }
 end
 
 rule mark
-  'mark' word_end :form { SimpleNode.new "$mark[<form>]", form }
+  'mark' word_end :form { SimpleNode.new "$mark[<form>]", @form }
 end
 
 rule is_marked
-  'is-marked' word_end :form { SimpleNode.new "$is_marked[<form>]", form }
+  'is-marked' word_end :form { SimpleNode.new "$is_marked[<form>]", @form }
 end
 
 rule add_mark_scope
-  'add-mark-scope' word_end :form { SimpleNode.new "$add_mark_scope[<form>]", form }
+  'add-mark-scope' word_end :form { SimpleNode.new "$add_mark_scope[<form>]", @form }
 end
 
 rule enter_mode
-  'enter-mode' word_end :name :form { SimpleNode.new "$enter_mode[\"#{name}\", <form>]", form }
+  'enter-mode' word_end :name :form { SimpleNode.new "$enter_mode[\"#{@name}\", <form>]", @form }
 end
 
 rule leave_mode
-  'leave-mode' word_end :name :form { SimpleNode.new "$leave_mode[\"#{name}\", <form>]", form }
+  'leave-mode' word_end :name :form { SimpleNode.new "$leave_mode[\"#{@name}\", <form>]", @form }
 end
 
 rule not_in_mode
-  'not-in-mode' word_end :name :form { SimpleNode.new "!$in_mode[\"#{name}\"] <form>", form }
+  'not-in-mode' word_end :name :form { SimpleNode.new "!$in_mode[\"#{@name}\"] <form>", @form }
 end
 
 rule only_in_mode
-  'only-in-mode' word_end :name :form { SimpleNode.new "$in_mode[\"#{name}\"] <form>", form }
+  'only-in-mode' word_end :name :form { SimpleNode.new "$in_mode[\"#{@name}\"] <form>", @form }
 end
 
 rule error
-  'error' word_end :form msg:string_literal { SimpleNode.new "( !<form> / $error[\"#{msg}\"] )", form, true }
+  'error' word_end :form msg:string_literal { SimpleNode.new "( !<form> / $error[\"#{@msg}\"] )", @form, true }
 end
 
 rule return
-  'return' word_end str:string_literal { Value.new "\"#{str}\"" }
+  'return' word_end str:string_literal { Value.new "\"#{@str}\"" }
 end
 
 rule again
-  'again' word_end :form { Value.new "$match[#{form.value}]" }
+  'again' word_end :form { Value.new "$match[#{@form.value}]" }
 end
 
 rule location
-  'location' word_end :form { form } # TODO
+  'location' word_end :form { @form } # TODO
 end
 
 rule postpone_rest_of_line
@@ -173,7 +173,7 @@ rule param_close
 end
 
 rule name
-  str:word_char+ ws { str.gsub("-", "_") }
+  str:word_char+ ws { @str.gsub("-", "_") }
 end
 
 rule word_end

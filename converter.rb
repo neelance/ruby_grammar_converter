@@ -247,15 +247,22 @@ Benchmark.bm(17) do |bm|
   bm.report("loading grammar:") do
     parser = JetPEG.load File.join(File.dirname(__FILE__), "lisp_grammar.jetpeg")
   end
+  
+  bm.report("building:") do
+    parser.root_rules << :grammar
+    parser.build
+  end
+  
   bm.report("compiling:") do
     parser[:grammar].match "" # compile
   end
+  
   bm.report("parsing:") do
     data_pointer, input_address = parser.match_rule parser[:grammar], code, :output => :pointer
   end
   
   bm.report("loading data:") do
-    data = parser[:grammar].rule_return_type.load data_pointer, code, input_address
+    data = parser[:grammar].return_type.load data_pointer, code, input_address, {}
   end
   
   bm.report("realizing data:") do
